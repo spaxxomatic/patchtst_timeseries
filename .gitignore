@@ -8,3 +8,5 @@ wheels/
 lightning_logs/
 # Virtual environments
 .venv
+logs/
+
