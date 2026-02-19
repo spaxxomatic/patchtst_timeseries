@@ -5,6 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "ipykernel==6.31.0",
+    "ipywidgets>=8.1.8",
+    "jupyterlab>=4.5.4",
+    "litlogger>=0.1.7",
     "matplotlib>=3.10.8",
     "neuralforecast>=3.1.4",
     "scikit-learn>=1.8.0",
