@@ -4,6 +4,7 @@ from typing import Optional
 import pandas as pd
 import yfinance as yf
 import os
+import numpy as np
 
 os.environ["HTTP_PROXY"]  = "http://proxy.isoad.isogmbh.de:81"
 os.environ["HTTPS_PROXY"] = "http://proxy.isoad.isogmbh.de:81"
@@ -111,3 +112,63 @@ def get_ticker(
 
     _save_cache(path, merged)
     return _slice(merged, start, end)
+
+def get_df_for_period(tickers, period,  tickers_with_vol=None, tickers_with_ohlc=None ):
+    if tickers_with_ohlc is None:
+        tickers_with_ohlc = tickers
+    if tickers_with_vol is None:
+        tickers_with_vol = tickers
+        
+    df_raw_multi = yf.download(tickers,start=period['start'], end=period['end'])
+
+    df_close_log = np.log(df_raw_multi['Close'] / df_raw_multi['Close'].shift(1))
+    df_open_log  = np.log(df_raw_multi['Open']  / df_raw_multi['Open'].shift(1))
+    df_high_log  = np.log(df_raw_multi['High']  / df_raw_multi['High'].shift(1))
+    df_low_log   = np.log(df_raw_multi['Low']   / df_raw_multi['Low'].shift(1))
+    df_vol_log   = np.log(df_raw_multi['Volume']).diff()
+
+    # PatchTST does not support hist_exog_list — each feature is a separate unique_id
+    df_list = []
+    for ticker in tickers:
+        ticker_name_clean = ticker.replace("^", "")
+        df_list.append(pd.DataFrame({
+            'ds':        df_close_log.index,
+            'unique_id': f'{ticker_name_clean}_price',
+            'y':         df_close_log[ticker],            
+        }).dropna())
+        if ticker in tickers_with_ohlc:
+            for suffix, series in [('open', df_open_log), ('high', df_high_log), ('low', df_low_log)]:
+                df_list.append(pd.DataFrame({
+                    'ds':        series.index,
+                    'unique_id': f'{ticker_name_clean}_{suffix}',
+                    'y':         series[ticker],
+                }).dropna())
+        if ticker in tickers_with_vol:
+            df_list.append(pd.DataFrame({
+                'ds':        df_vol_log.index,
+                'unique_id': f'{ticker_name_clean}_vol',
+                'y':         df_vol_log[ticker],
+            }).dropna())
+
+    df = pd.concat(df_list).reset_index(drop=True)
+
+    # --- Sanity checks ---
+    # dropna() above removes NaN but NOT inf — replace inf with NaN then drop
+    inf_count = np.isinf(df['y']).sum()
+    if inf_count > 0:
+        print(f"WARNING: {inf_count} inf values found — replacing with NaN and dropping")
+        print(df[np.isinf(df['y'])].groupby('unique_id').size().to_string())
+        df['y'] = df['y'].replace([np.inf, -np.inf], np.nan)
+        df = df.dropna(subset=['y'])
+
+    nan_count = df['y'].isna().sum()
+    if nan_count > 0:
+        print(f"WARNING: {nan_count} NaN values remain after cleanup")
+
+    print(df['unique_id'].value_counts())
+    all_dates = np.sort(df['ds'].unique())
+    n_total = len(all_dates)
+    print(f"Total days: {n_total}  |  Total rows: {len(df)}  |  Series: {df['unique_id'].nunique()}")
+    print(f"y range: [{df['y'].min():.6f}, {df['y'].max():.6f}]  |  mean: {df['y'].mean():.6f}  |  std: {df['y'].std():.6f}")
+    return df
+    

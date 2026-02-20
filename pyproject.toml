@@ -11,6 +11,7 @@ dependencies = [
     "litlogger>=0.1.7",
     "matplotlib>=3.10.8",
     "neuralforecast>=3.1.4",
+    "optuna>=4.7.0",
     "scikit-learn>=1.8.0",
     "scipy>=1.17.0",
     "tzdata>=2025.3",
