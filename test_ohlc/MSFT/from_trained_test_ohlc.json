@@ -1,0 +1,15 @@
+{
+    "THRESHOLD": 0.0002,
+    "STOPLOSS_THRESHOLD": -0.01,
+    "FEE": 0.0005,
+    "tickers": [
+        "AAPL",
+        "^SPX",
+        "MSFT",
+        "^NDX"
+    ],
+    "trading_start": "2025-01-01",
+    "trading_end": "2025-11-01",
+    "model_path": "./checkpoints/patchtst_momentum_model_multivar_100days/",
+    "traded_symbol": "MSFT"
+}

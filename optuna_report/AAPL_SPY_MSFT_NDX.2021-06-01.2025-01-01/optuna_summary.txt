@@ -1,4 +1,4 @@
 Tickers: ['AAPL', 'SPY', 'MSFT', 'NDX']
 Period: {'start': '2021-06-01', 'end': '2025-01-01'}
-Best params: {'input_size': 80, 'patch_len': 8, 'stride': 2, 'encoder_layers': 2, 'n_heads': 4, 'hidden_size': 32, 'linear_hidden_size': 256, 'dropout': 0.11277365231240732, 'learning_rate': 0.0002796795622851195}
-Best hit rate: 0.738095238095238
+Best params: {'input_size': 80, 'patch_len': 4, 'stride': 4, 'encoder_layers': 1, 'n_heads': 8, 'hidden_size': 64, 'linear_hidden_size': 512, 'dropout': 0.221904027232173, 'learning_rate': 0.0009602017657525462}
+Best hit rate: 0.6904761904761906

@@ -1,0 +1,4 @@
+Tickers: ['^SPX', 'KO']
+Period: {'start': '2020-06-01', 'end': '2025-01-01'}
+Best params: {'input_size': 90, 'patch_len': 16, 'stride': 2, 'encoder_layers': 5, 'n_heads': 8, 'hidden_size': 128, 'linear_hidden_size': 64, 'dropout': 0.06754589926422576, 'learning_rate': 0.0003982417023021224}
+Best hit rate: 0.625

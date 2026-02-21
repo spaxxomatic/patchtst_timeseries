@@ -113,7 +113,7 @@ def get_ticker(
     _save_cache(path, merged)
     return _slice(merged, start, end)
 
-def get_df_for_period(tickers, period,  tickers_with_vol=None, tickers_with_ohlc=None ):
+def get_df_for_period(tickers, period,  tickers_with_vol=None, tickers_with_ohlc=None )->pd.DataFrame:
     if tickers_with_ohlc is None:
         tickers_with_ohlc = tickers
     if tickers_with_vol is None:

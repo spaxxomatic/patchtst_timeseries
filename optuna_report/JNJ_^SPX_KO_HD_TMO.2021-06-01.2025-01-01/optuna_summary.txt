@@ -1,0 +1,4 @@
+Tickers: ['JNJ', '^SPX', 'KO', 'HD', 'TMO']
+Period: {'start': '2021-06-01', 'end': '2025-01-01'}
+Best params: {'input_size': 100, 'patch_len': 16, 'stride': 4, 'encoder_layers': 4, 'n_heads': 2, 'hidden_size': 64, 'linear_hidden_size': 512, 'dropout': 0.22478073037266735, 'learning_rate': 0.0001166273058238014}
+Best hit rate: 0.6190476190476191

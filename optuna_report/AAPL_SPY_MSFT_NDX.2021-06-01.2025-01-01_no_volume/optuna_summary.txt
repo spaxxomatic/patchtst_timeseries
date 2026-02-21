@@ -1,2 +1,0 @@
-Best params:    {'input_size': 100, 'patch_len': 16, 'stride': 8, 'encoder_layers': 1, 'n_heads': 8, 'hidden_size': 32, 'linear_hidden_size': 256, 'dropout': 0.1029114858860248, 'learning_rate': 0.00017560914552388222}
-Best hit rate:  0.5912698412698412
