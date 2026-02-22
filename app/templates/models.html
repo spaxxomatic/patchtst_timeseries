@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TradeSimulator — Model Overview</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.4rem; margin: 0 0 20px; color: #fff; letter-spacing: 0.02em; }
+
+    /* Nav */
+    .nav {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .nav a {
+      padding: 6px 18px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: #1e2130;
+      color: #8892b0;
+      border: 1px solid #2a2f45;
+      transition: all 0.15s;
+    }
+    .nav a:hover { background: #2a3050; color: #cdd5f3; }
+    .nav a.active {
+      background: #3b5bdb;
+      color: #fff;
+      border-color: #3b5bdb;
+    }
+
+    /* Table wrapper */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #2a2f45;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    thead th {
+      background: #1a1f33;
+      color: #8892b0;
+      text-align: right;
+      padding: 10px 14px;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #2a2f45;
+      position: relative;
+    }
+    thead th:first-child { text-align: left; }
+    thead th:last-child  { cursor: default; }
+    thead th:hover { color: #cdd5f3; background: #1e2440; }
+    thead th:last-child:hover { color: #8892b0; background: #1a1f33; }
+    thead th.sort-asc::after  { content: " ↑"; color: #4dabf7; }
+    thead th.sort-desc::after { content: " ↓"; color: #4dabf7; }
+
+    /* group header row */
+    thead tr.group-header th {
+      background: #161926;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #4a5280;
+      padding: 4px 14px;
+      border-bottom: none;
+      cursor: default;
+    }
+
+    tbody tr { border-bottom: 1px solid #1e2130; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #181d2e; }
+
+    td {
+      padding: 8px 14px;
+      text-align: right;
+      white-space: nowrap;
+      color: #c0c8e0;
+    }
+    td:first-child { text-align: left; font-family: monospace; font-size: 0.78rem; color: #8892b0; }
+
+    /* Chart button */
+    .btn-chart {
+      background: #1e2440;
+      border: 1px solid #2a3060;
+      color: #7090d0;
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-chart:hover {
+      background: #2a3a60;
+      color: #a0c0ff;
+      border-color: #3b5bdb;
+    }
+    .btn-chart.loading { opacity: 0.5; cursor: wait; }
+
+    /* Colour coding */
+    .pos     { color: #51cf66; }
+    .neg     { color: #ff6b6b; }
+    .neutral { color: #868e96; }
+
+    .no-data {
+      text-align: center;
+      padding: 48px;
+      color: #4a5280;
+      font-size: 0.9rem;
+    }
+
+    /* ── Modal ── */
+    #chart-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #chart-modal.open { display: flex; }
+
+    #chart-modal .modal-box {
+      position: relative;
+      max-width: 92vw;
+      max-height: 90vh;
+      background: #141720;
+      border-radius: 10px;
+      border: 1px solid #2a2f45;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #chart-modal .modal-title {
+      font-size: 0.82rem;
+      color: #8892b0;
+      font-family: monospace;
+    }
+
+    #chart-modal img {
+      max-width: 100%;
+      max-height: calc(90vh - 70px);
+      border-radius: 6px;
+      display: block;
+    }
+
+    #chart-modal .modal-close {
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      background: none;
+      border: none;
+      color: #8892b0;
+      font-size: 1.3rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+    #chart-modal .modal-close:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+<h1>Model Overview</h1>
+
+<!-- Nav -->
+<div class="nav">
+  <a href="/">Simulations</a>
+  <a href="/models" class="active">Models</a>
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  {% if rows %}
+  <table id="models-table">
+    <thead>
+      <tr class="group-header">
+        <th colspan="4">Model</th>
+        <th colspan="1">Result</th>
+        <th colspan="7">Best Params</th>
+        <th colspan="2">Charts</th>
+      </tr>
+      <tr>
+        <th data-col="0" data-type="str">Folder</th>
+        <th data-col="1" data-type="str">Symbol</th>
+        <th data-col="2" data-type="str">Data from</th>
+        <th data-col="3" data-type="str">Trade start</th>
+        <th data-col="4" data-type="num">Hit rate</th>
+        <th data-col="5" data-type="num">Input sz</th>
+        <th data-col="6" data-type="num">Patch</th>
+        <th data-col="7" data-type="num">Stride</th>
+        <th data-col="8" data-type="num">Enc layers</th>
+        <th data-col="9" data-type="num">Heads</th>
+        <th data-col="10" data-type="num">Hidden</th>
+        <th data-col="11" data-type="num">LR</th>
+        <th>CV</th>
+        <th>Train</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.folder }}</td>
+        <td style="text-align:left; color:#cdd5f3; font-weight:600">{{ r.symbol }}</td>
+        <td style="text-align:left">{{ r.load_data_from }}</td>
+        <td style="text-align:left">{{ r.trading_start }}</td>
+        <td class="{{ 'pos' if r.best_hit_rate and r.best_hit_rate > 0.55 else ('neutral' if r.best_hit_rate else '') }}">
+          {{ "%.3f"|format(r.best_hit_rate) if r.best_hit_rate is not none else "—" }}
+        </td>
+        <td>{{ r.input_size if r.input_size is not none else "—" }}</td>
+        <td>{{ r.patch_len if r.patch_len is not none else "—" }}</td>
+        <td>{{ r.stride if r.stride is not none else "—" }}</td>
+        <td>{{ r.encoder_layers if r.encoder_layers is not none else "—" }}</td>
+        <td>{{ r.n_heads if r.n_heads is not none else "—" }}</td>
+        <td>{{ r.hidden_size if r.hidden_size is not none else "—" }}</td>
+        <td>{{ "%.2e"|format(r.learning_rate) if r.learning_rate is not none else "—" }}</td>
+        <td>
+          {% if r.has_cv_chart %}
+          <button class="btn-chart" data-url="/model-cv-image/{{ r.folder }}" data-label="{{ r.folder }} — CV backtest">&#128200;</button>
+          {% else %}
+          <span class="neutral" style="font-size:0.75rem">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if r.has_train_chart %}
+          <button class="btn-chart" data-url="/model-train-image/{{ r.folder }}" data-label="{{ r.folder }} — Training curves">&#128200;</button>
+          {% else %}
+          <span class="neutral" style="font-size:0.75rem">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="no-data">No models found in checkpoints/.</p>
+  {% endif %}
+</div>
+
+<!-- Chart modal -->
+<div id="chart-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close-btn">&times;</button>
+    <div class="modal-title" id="modal-title"></div>
+    <img id="modal-img" src="" alt="Chart">
+  </div>
+</div>
+
+<script>
+  (function () {
+    // ── Sortable table ────────────────────────────────────────────────────────
+    const table = document.getElementById("models-table");
+    if (table) {
+      let sortCol = null;
+      let sortAsc = true;
+      const headers = table.querySelectorAll("thead tr:last-child th[data-col]");
+
+      headers.forEach((th) => {
+        th.addEventListener("click", () => {
+          const col  = parseInt(th.dataset.col);
+          const type = th.dataset.type;
+
+          sortAsc = (sortCol === col) ? !sortAsc : true;
+          sortCol = col;
+
+          headers.forEach((h) => h.classList.remove("sort-asc", "sort-desc"));
+          th.classList.add(sortAsc ? "sort-asc" : "sort-desc");
+
+          const tbody = table.tBodies[0];
+          const rows  = Array.from(tbody.rows);
+
+          rows.sort((a, b) => {
+            const aText = a.cells[col].textContent.trim();
+            const bText = b.cells[col].textContent.trim();
+            let aVal, bVal;
+            if (type === "num") {
+              aVal = aText === "—" ? (sortAsc ? Infinity : -Infinity) : parseFloat(aText);
+              bVal = bText === "—" ? (sortAsc ? Infinity : -Infinity) : parseFloat(bText);
+            } else {
+              aVal = aText.toLowerCase();
+              bVal = bText.toLowerCase();
+            }
+            if (aVal < bVal) return sortAsc ? -1 : 1;
+            if (aVal > bVal) return sortAsc ? 1  : -1;
+            return 0;
+          });
+          rows.forEach((r) => tbody.appendChild(r));
+        });
+      });
+    }
+
+    // ── Chart modal ───────────────────────────────────────────────────────────
+    const modal      = document.getElementById("chart-modal");
+    const modalImg   = document.getElementById("modal-img");
+    const modalTitle = document.getElementById("modal-title");
+    const closeBtn   = document.getElementById("modal-close-btn");
+
+    function openChart(url, label, btn) {
+      modalTitle.textContent = label;
+      modalImg.src = "";
+      modal.classList.add("open");
+      if (btn) btn.classList.add("loading");
+
+      const tmp = new Image();
+      tmp.onload = () => {
+        modalImg.src = url;
+        if (btn) btn.classList.remove("loading");
+      };
+      tmp.onerror = () => {
+        modalTitle.textContent = label + "  —  (no chart available)";
+        if (btn) btn.classList.remove("loading");
+      };
+      tmp.src = url;
+    }
+
+    function closeModal() {
+      modal.classList.remove("open");
+      modalImg.src = "";
+    }
+
+    document.querySelectorAll(".btn-chart").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        openChart(btn.dataset.url, btn.dataset.label, btn)
+      );
+    });
+
+    closeBtn.addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
+  })();
+</script>
+
+</body>
+</html>

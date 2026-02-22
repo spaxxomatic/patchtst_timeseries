@@ -14,24 +14,78 @@ import os
 from lib.visualize import visualize_from_folder
 
 SIGNAL_TRIGGER_STOPLOSS = -2
-MODEL_INPUT_LEN = 130 #TODO - load from modelfolder/optuna_summary.json - input_size
+_FALLBACK_INPUT_LEN = 130
+
+def _load_input_size(model_path: str) -> int:
+    summary_file = Path(model_path) / 'optuna_summary.json'
+    if summary_file.exists():
+        summary = json.loads(summary_file.read_text())
+        input_size = summary.get('best_params', {}).get('input_size')
+        if input_size is not None:
+            print(f"input_size={input_size} loaded from {summary_file}")
+            return int(input_size)
+    print(f"WARNING: optuna_summary.json not found at {model_path}, falling back to input_size={_FALLBACK_INPUT_LEN}")
+    return _FALLBACK_INPUT_LEN
+
+
+def _load_calibrated_threshold(model_path: str, percentile: str = 'p50', fallback: float = None) -> float:
+  #- Reads p50 from optuna_summary.json at startup 
+  #- Falls back to params.THRESHOLD if not available                                                                                                                     
+  #The p50 means "only trade when today's prediction magnitude is above your own historical median" — principled,
+  #adaptive per ticker, and zero lookahead. 
+  #You can trivially switch to p25 (more trades) or p75 (fewer, higher conviction) by changing the percentile argument.    
+    summary_file = Path(model_path) / 'optuna_summary.json'
+    if summary_file.exists():
+        cal = json.loads(summary_file.read_text()).get('threshold_calibration')
+        if cal and percentile in cal:
+            threshold = cal[percentile]
+            print(f"Calibrated threshold ({percentile})={threshold:.5f} loaded from {summary_file}")
+            return threshold
+    if fallback is not None:
+        print(f"No calibrated threshold found — using fallback THRESHOLD={fallback}")
+    return fallback
+
+_SIM_GENERATED_FILES = ["sim_log.csv", "simstats.json", "result.png", "perf_stats.json"]
+_SIM_LOCK_FILE       = "sim.lock"
+
 
 def run_simulation(tradeSimParams:TradeSimParams):
+    lock = tradeSimParams.logfolder / _SIM_LOCK_FILE
+    lock.touch()
+    success = False
+    try:
+        _run_simulation_inner(tradeSimParams)
+        success = True
+    finally:
+        lock.unlink(missing_ok=True)
+        if not success:
+            for fname in _SIM_GENERATED_FILES:
+                (tradeSimParams.logfolder / fname).unlink(missing_ok=True)
+
+
+def _run_simulation_inner(tradeSimParams:TradeSimParams):
     trader = Trader()
     portfolio_value = Trader.START_VALUE
     portfolio_value_at_entry = Trader.START_VALUE
     current_pos = 0
     position_return = 0
     entry_price = None
+    MODEL_INPUT_LEN = _load_input_size(tradeSimParams.model_path)
+    THRESHOLD = _load_calibrated_threshold(
+        tradeSimParams.model_path, percentile='p50', fallback=tradeSimParams.THRESHOLD
+    )
     print("Loading data")
     simdata:TradeSimulData = TradeSimulData(tradeSimParams)
     # Log-Header
     with open(tradeSimParams.sim_log_file, 'w') as f_sim_log_file:
-        f_sim_log_file.write("date,pred_momentum,signal,in_market,trade_return,portfolio_value,position_return\n")
+        f_sim_log_file.write("date,pred_momentum,ci_lo_80,ci_hi_80,signal,in_market,trade_return,portfolio_value,position_return\n")
 
     # Load pre-trained model
     print ("Loading model from ", tradeSimParams.model_storage_folder)
-    nf = NeuralForecast.load(path=str(tradeSimParams.model_storage_folder.absolute()))
+    if tradeSimParams.is_model_available():
+        nf = NeuralForecast.load(path=str(tradeSimParams.model_storage_folder.absolute()))
+    else:
+        raise RuntimeError(f"Model not available in {tradeSimParams.model_storage_folder}")
     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     logging.getLogger("neuralforecast").setLevel(logging.ERROR)
     logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
@@ -79,31 +133,28 @@ def run_simulation(tradeSimParams:TradeSimParams):
                 ).iloc[0:tradeSimParams.signal_horizon_steps].iterrows()]
         
         #preds = forecast.query(f"unique_id == '{predict_ticker}_price'").iloc[0,1,2,3] #get predictions for the next days    
-        if 'PatchTST' in predictions[0]: #MAE-based prediction
-            pred_avg_over_next_2_days = (predictions[0]['PatchTST'] + predictions[1]['PatchTST'])/2
-            # Signal logic
+        if 'PatchTST' in predictions[0]:  # MAE-based prediction
+            pred_avg = (predictions[0]['PatchTST'] + predictions[1]['PatchTST']) / 2
             signal = 0
-            if pred_avg_over_next_2_days > params.THRESHOLD:  signal = 1
-            elif pred_avg_over_next_2_days < -1*params.THRESHOLD: signal = -1
-            return (signal, pred_avg_over_next_2_days)
-        else : #mq-loss trained net
+            if pred_avg > THRESHOLD:   signal = 1
+            elif pred_avg < -THRESHOLD: signal = -1
+            return signal, pred_avg, None, None
+        else:  # MQLoss-trained net
             return get_signal_from_confidence(predictions)
             
 
     def get_signal_from_confidence(predictions):
-        signal = 0
-        #if p1['PatchTST-lo-80'] > 0: 
-        #    signal = 1   # entire 80% interval is positive        
-        #if p1['PatchTST-hi-80'] < 0:
-        #    signal = -1  # entire 80% interval is negative
         trend_pred = mean([p['PatchTST-median'] for p in predictions])
-        if trend_pred > params.THRESHOLD: 
-            signal = 1       
-        if trend_pred < -1*params.THRESHOLD:
-            signal = -1  
-        print ([p['PatchTST-median'] for p in predictions])
-        # pred_momentum < -1*params.THRESHOLD: signal = -1
-        return signal, trend_pred
+        avg_lo_80  = mean([p['PatchTST-lo-80']  for p in predictions])
+        avg_hi_80  = mean([p['PatchTST-hi-80']  for p in predictions])
+
+        signal = 0
+        if trend_pred > THRESHOLD:
+            signal = 1
+        elif trend_pred < -THRESHOLD:
+            signal = -1
+
+        return signal, trend_pred, avg_lo_80, avg_hi_80
     print("Start simulation")
     for i, today in enumerate(test_dates):
         # --- Build input window: last MODEL_INPUT_LEN rows per unique_id up to today ---
@@ -119,7 +170,7 @@ def run_simulation(tradeSimParams:TradeSimParams):
         # Predict next h days
         forecast = nf.predict(df=df_step)
         
-        (signal, prediction) = get_signal(forecast)
+        signal, prediction, ci_lo_80, ci_hi_80 = get_signal(forecast)
         # --- P&L with real prices ---
         trade_return = 0.0
 
@@ -145,7 +196,7 @@ def run_simulation(tradeSimParams:TradeSimParams):
                     position_return = 0
                     signal = 0
                     current_pos = 0
-                portfolio_value *= (1 - FEE)
+                portfolio_value *= (1 - FEE) # substract fee
                 portfolio_value_at_entry = portfolio_value  # keep snapshot current after every close
                 if signal != 0 and i + 1 < len(test_dates):
                     next_day = test_dates[i + 1]
@@ -154,10 +205,13 @@ def run_simulation(tradeSimParams:TradeSimParams):
                 else:
                     entry_price = None
 
-        print(f"{today.date()} | Pred: {prediction:.5f} | Signal: {signal} | "
+        ci_str = f"CI=[{ci_lo_80:+.5f},{ci_hi_80:+.5f}] " if ci_lo_80 is not None else ""
+        print(f"{today.date()} | Pred: {prediction:.5f} | {ci_str}Signal: {signal} | "
             f"Pos: {current_pos} | Return: {trade_return:+.4f} | Port: {portfolio_value:.2f}")
+        lo_str = f"{ci_lo_80}" if ci_lo_80 is not None else ""
+        hi_str = f"{ci_hi_80}" if ci_hi_80 is not None else ""
         with open(tradeSimParams.sim_log_file, 'a') as f:
-            f.write(f"{today.date()},{prediction},{day_current_signal},{day_current_pos},{trade_return},{portfolio_value},{this_position_return}\n")
+            f.write(f"{today.date()},{prediction},{lo_str},{hi_str},{day_current_signal},{day_current_pos},{trade_return},{portfolio_value},{this_position_return}\n")
 
     # Close last open position — portfolio_value already reflects the last
     # close price from the final loop iteration; only the exit fee is missing.
@@ -165,7 +219,7 @@ def run_simulation(tradeSimParams:TradeSimParams):
         last_close = traded_ticker_close.loc[test_dates[-1]]
         final_return = current_pos * (last_close - entry_price) / entry_price
         portfolio_value *= (1 - FEE)
-        print(f"\nFinal close | Return: {final_return:+.4f} | Port: {portfolio_value:.2f}€")
+        print(f"\nFinal close | Return: {final_return:+.4f} | Port: {portfolio_value:.2f}$")
 
     tradeSimParams.log_sim_results( {
         'start_value': START_VALUE, 
@@ -173,18 +227,19 @@ def run_simulation(tradeSimParams:TradeSimParams):
         'yield': (portfolio_value/START_VALUE-1)*100
         }
     )
-    visualize_from_folder(params.logfolder)
-    print(f"\n=== Endwert: {portfolio_value:.2f} (Start: 10000€, Rendite: {(portfolio_value/10000-1)*100:+.2f}%) ===")
+    visualize_from_folder(tradeSimParams.logfolder)
+    print(f"\n=== End value: {portfolio_value:.2f}$ (Start: 10000, Yield: {(portfolio_value/10000-1)*100:+.2f}%) ===")
     
 if __name__ == "__main__":
     for signal_horizon_step in range(1,8):
+        traded_symbol = 'JPM'
         params = TradeSimParams(
-            THRESHOLD=0.0002,
+            THRESHOLD=0.001,
             STOPLOSS_THRESHOLD= -0.01,
             TRAILING_STOP_THRESHOLD= 0.3,        
             FEE= 0.0005,
-            traded_symbol = 'INTC',
-            tickers = ['INTC', '^SPX'],
+            traded_symbol = traded_symbol,
+            tickers = [traded_symbol, '^SPX', '^VIX'],
             load_data_from_date="2015-01-01",
             trading_start="2025-01-01",
             trading_end="2025-12-01",

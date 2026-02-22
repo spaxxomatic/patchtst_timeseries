@@ -60,6 +60,9 @@ class TrainConfig:
     final_max_steps: int = 500     # training steps for final model
     val_size: int = 50             # validation rows withheld during final fit
 
+    # GPU / data loading
+    precision: str = '16-mixed'    # '16-mixed' uses fp16 on Ampere, '32' to disable
+
 
 # ── Optuna objective ──────────────────────────────────────────────────────────
 
@@ -81,6 +84,7 @@ def _build_model(trial, config: TrainConfig) -> PatchTST:
         early_stop_patience_steps=-1,
         accelerator='gpu',
         devices=1,
+        precision=config.precision,
         enable_progress_bar=False,
     )
 
@@ -203,6 +207,7 @@ def train_final_model(params, df_train, best_hyperparams: dict, config: TrainCon
         val_check_steps=50,
         accelerator='gpu',
         devices=1,
+        precision=config.precision,
         enable_progress_bar=True,
         logger=pl_logger,
     )
@@ -355,10 +360,12 @@ def train(params, config: TrainConfig = None):
     df_train = get_df_for_period(
         params.tickers,
         {'start': params.load_data_from_date, 'end': params.trading_start},
+        target_ticker=params.traded_symbol,
     )
     df_test = get_df_for_period(
         params.tickers,
         {'start': params.trading_start, 'end': params.trading_end},
+        target_ticker=params.traded_symbol,
     )
     print(f"  Train: {len(df_train['ds'].unique())} days  |  "
           f"Test: {len(df_test['ds'].unique())} days  |  "
@@ -374,6 +381,9 @@ def train(params, config: TrainConfig = None):
     print("\nTraining final model…")
     nf = train_final_model(params, df_train, study.best_params, config)
 
+    print("\nCalibrating threshold…")
+    calibrate_threshold(nf, df_train, params, config, model_dir)
+
     print("\nGenerating CV backtest…")
     plot_cv_backtest(nf, df_train, df_test, params, model_dir)
 
@@ -387,7 +397,8 @@ def _silence_loggers():
         logging.getLogger(name).setLevel(logging.ERROR)
 
 
-def _save_optuna_report(study: optuna.Study, params, config: TrainConfig, model_dir: Path, runtime:int):
+def _save_optuna_report(study: optuna.Study, params, config: TrainConfig, model_dir: Path,
+                        runtime: int, threshold_calibration: dict = None):
     import pandas as pd
 
     summary = {
@@ -397,11 +408,14 @@ def _save_optuna_report(study: optuna.Study, params, config: TrainConfig, model_
         'trading_start':   params.trading_start,
         'best_hit_rate':   round(study.best_value, 6),
         'best_params':     study.best_params,
-        'runtime':     runtime,
+        'runtime':         runtime,
         'n_completed_trials': len([t for t in study.trials
                                    if t.state == optuna.trial.TrialState.COMPLETE]),
         'config': {k: v for k, v in config.__dict__.items()},
     }
+    if threshold_calibration is not None:
+        summary['threshold_calibration'] = threshold_calibration
+
     (model_dir / 'optuna_summary.json').write_text(json.dumps(summary, indent=2))
 
     df_trials = study.trials_dataframe()
@@ -409,6 +423,49 @@ def _save_optuna_report(study: optuna.Study, params, config: TrainConfig, model_
         model_dir / 'optuna_trials.csv', index=False
     )
     print(f"Optuna report saved to {model_dir}")
+
+
+def calibrate_threshold(nf: NeuralForecast, df_train, params, config: TrainConfig,
+                        model_dir: Path) -> dict:
+    """
+    Run cross-validation over the last val_size days of df_train (the held-out
+    validation window — never seen by the final model during training) and compute
+    percentiles of |median| predictions.
+
+    Returns a dict with p25, p50, p75 keys — honest, lookahead-free thresholds.
+    Saved into optuna_summary.json under 'threshold_calibration'.
+    """
+    target_uid = f'{params.traded_symbol}_price'
+
+    print(f"Calibrating threshold over last {config.val_size} val days…")
+    cv = nf.cross_validation(
+        df=df_train,
+        n_windows=config.val_size,
+        step_size=1,
+        refit=False,
+    )
+
+    # One prediction per day — first horizon step per cutoff
+    cv_target = cv[cv['unique_id'] == target_uid]
+    cv_daily  = cv_target.groupby('cutoff').first().reset_index()
+
+    abs_medians = cv_daily['PatchTST-median'].abs()
+
+    calibration = {
+        'p25': round(float(np.percentile(abs_medians, 25)), 6),
+        'p50': round(float(np.percentile(abs_medians, 50)), 6),
+        'p75': round(float(np.percentile(abs_medians, 75)), 6),
+    }
+    print(f"  p25={calibration['p25']:.5f}  p50={calibration['p50']:.5f}  "
+          f"p75={calibration['p75']:.5f}")
+
+    # Patch the already-written optuna_summary.json
+    summary_path = model_dir / 'optuna_summary.json'
+    summary = json.loads(summary_path.read_text())
+    summary['threshold_calibration'] = calibration
+    summary_path.write_text(json.dumps(summary, indent=2))
+
+    return calibration
 
 
 # ── CLI entry point ───────────────────────────────────────────────────────────
@@ -421,9 +478,9 @@ if __name__ == '__main__':
         STOPLOSS_THRESHOLD=-0.01,
         TRAILING_STOP_THRESHOLD=0.3,
         FEE=0.0005,
-        traded_symbol='INTC',
-        tickers=['INTC', '^SPX'],
-        load_data_from_date='2015-01-01',
+        traded_symbol='BRK-B',
+        tickers=['BRK-B', '^SPX' ,'^VIX'],
+        load_data_from_date='2010-01-01',
         trading_start='2025-01-01',
         trading_end='2025-11-01',
     )

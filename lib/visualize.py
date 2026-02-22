@@ -192,6 +192,36 @@ def print_sim_stats(params) -> dict:
     avg_win    = round(float(trade_returns[trade_returns > 0].mean() * 100), 4) if n_winners > 0 else 0.0
     avg_loss   = round(float(trade_returns[trade_returns < 0].mean() * 100), 4) if n_losers  > 0 else 0.0
 
+    # ── Directional confusion matrix ─────────────────────────────────────────
+    # pred_momentum is logged for every day (ungated, pre-threshold signal).
+    # actual_next_day_return = next close / today close - 1  (shift closes by -1).
+    import numpy as np
+    next_close      = closes.shift(-1)
+    actual_ret      = (next_close - closes) / closes          # next-day return
+    pred_sign       = np.sign(df_log['pred_momentum'])
+    actual_sign     = np.sign(actual_ret.reindex(df_log.index))
+
+    # Only evaluate days where neither is exactly 0
+    mask = (pred_sign != 0) & (actual_sign != 0) & actual_sign.notna()
+    ps   = pred_sign[mask]
+    as_  = actual_sign[mask]
+    n_cm = int(mask.sum())
+
+    tp = int(((ps ==  1) & (as_ ==  1)).sum())
+    fp = int(((ps ==  1) & (as_ == -1)).sum())
+    fn = int(((ps == -1) & (as_ ==  1)).sum())
+    tn = int(((ps == -1) & (as_ == -1)).sum())
+    dir_acc = round((tp + tn) / n_cm * 100, 2) if n_cm > 0 else 0.0
+
+    confusion = {
+        'n_days':        n_cm,
+        'TP':            tp,
+        'FP':            fp,
+        'FN':            fn,
+        'TN':            tn,
+        'directional_accuracy_pct': dir_acc,
+    }
+
     stats = {
         'traded_symbol':   params.traded_symbol,
         'trading_start':   params.trading_start,
@@ -216,6 +246,8 @@ def print_sim_stats(params) -> dict:
         'strategy': strat_risk,
         # ── risk metrics (buy & hold) ──
         'buy_and_hold': bh_risk,
+        # ── directional confusion matrix ──
+        'confusion_matrix': confusion,
     }
 
     out = Path(params.logfolder) / 'perf_stats.json'
@@ -231,6 +263,7 @@ def print_sim_stats(params) -> dict:
     print(f"Long/Short/Flat:   {long_days} / {short_days} / {flat_days} days")
     print(f"Trades:            {n_trades}  (W: {n_winners} / L: {n_losers})  Win%: {win_pct:.1f}%")
     print(f"Avg Win / Loss:    {avg_win:+.2f}% / {avg_loss:+.2f}%")
+    print(f"Directional Acc:   {dir_acc:.1f}%  (TP={tp} FP={fp} FN={fn} TN={tn}  n={n_cm})")
     print(f"Stats saved to     {out}")
 
     return stats

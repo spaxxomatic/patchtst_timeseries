@@ -113,12 +113,26 @@ def get_ticker(
     _save_cache(path, merged)
     return _slice(merged, start, end)
 
-def get_df_for_period(tickers, period,  tickers_with_vol=None, tickers_with_ohlc=None )->pd.DataFrame:
+_PRICE_ONLY_TICKERS = {'^VIX'}  # derived indices whose open/high/low are noise
+
+def get_df_for_period(tickers, period, tickers_with_vol=None, tickers_with_ohlc=None, target_ticker=None) -> pd.DataFrame:
+    """
+    target_ticker : str, optional
+        If provided, two extra series are appended for that ticker only:
+          - <symbol>_rvol  : 10-day rolling realised volatility of close log-returns
+          - <symbol>_mom20 : 20-day cumulative log-return (momentum)
+
+    Defaults applied automatically:
+      - tickers_with_vol  : excludes index tickers (those starting with '^')
+      - tickers_with_ohlc : excludes _PRICE_ONLY_TICKERS (e.g. ^VIX — derived index,
+                            only the close is well-defined)
+    """
     if tickers_with_ohlc is None:
-        tickers_with_ohlc = tickers
+        tickers_with_ohlc = [t for t in tickers if t not in _PRICE_ONLY_TICKERS]
     if tickers_with_vol is None:
-        tickers_with_vol = tickers
-        
+        # Index tickers (^SPX, ^VIX, …) have no meaningful volume
+        tickers_with_vol = [t for t in tickers if not t.startswith('^')]
+
     df_raw_multi = yf.download(tickers,start=period['start'], end=period['end'])
 
     df_close_log = np.log(df_raw_multi['Close'] / df_raw_multi['Close'].shift(1))
@@ -134,7 +148,7 @@ def get_df_for_period(tickers, period,  tickers_with_vol=None, tickers_with_ohlc
         df_list.append(pd.DataFrame({
             'ds':        df_close_log.index,
             'unique_id': f'{ticker_name_clean}_price',
-            'y':         df_close_log[ticker],            
+            'y':         df_close_log[ticker],
         }).dropna())
         if ticker in tickers_with_ohlc:
             for suffix, series in [('open', df_open_log), ('high', df_high_log), ('low', df_low_log)]:
@@ -148,6 +162,19 @@ def get_df_for_period(tickers, period,  tickers_with_vol=None, tickers_with_ohlc
                 'ds':        df_vol_log.index,
                 'unique_id': f'{ticker_name_clean}_vol',
                 'y':         df_vol_log[ticker],
+            }).dropna())
+        if target_ticker is not None and ticker == target_ticker:
+            rvol = df_close_log[ticker].rolling(10).std()
+            mom20 = df_close_log[ticker].rolling(20).sum()
+            df_list.append(pd.DataFrame({
+                'ds':        rvol.index,
+                'unique_id': f'{ticker_name_clean}_rvol',
+                'y':         rvol,
+            }).dropna())
+            df_list.append(pd.DataFrame({
+                'ds':        mom20.index,
+                'unique_id': f'{ticker_name_clean}_mom20',
+                'y':         mom20,
             }).dropna())
 
     df = pd.concat(df_list).reset_index(drop=True)

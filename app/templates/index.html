@@ -17,6 +17,30 @@
 
     h1 { font-size: 1.4rem; margin: 0 0 20px; color: #fff; letter-spacing: 0.02em; }
 
+    /* Nav */
+    .nav {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .nav a {
+      padding: 6px 18px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: #1e2130;
+      color: #8892b0;
+      border: 1px solid #2a2f45;
+      transition: all 0.15s;
+    }
+    .nav a:hover { background: #2a3050; color: #cdd5f3; }
+    .nav a.active {
+      background: #3b5bdb;
+      color: #fff;
+      border-color: #3b5bdb;
+    }
+
     /* Symbol selector */
     .symbol-bar {
       display: flex;
@@ -117,6 +141,40 @@
     }
     .btn-chart.loading { opacity: 0.5; cursor: wait; }
 
+    /* Action buttons */
+    .btn-action {
+      background: none;
+      border: 1px solid #2a2f45;
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-delete { color: #ff6b6b; }
+    .btn-delete:hover { background: #3a1a1a; border-color: #ff6b6b; }
+    .btn-rerun  { color: #4dabf7; }
+    .btn-rerun:hover  { background: #1a2a3a; border-color: #4dabf7; }
+    .btn-rerun.running { color: #f59f00; border-color: #f59f00; cursor: wait; animation: spin 1.2s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-clear-all {
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #2a1a1a;
+      color: #ff6b6b;
+      border: 1px solid #5a2020;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-clear-all:hover { background: #3a1a1a; border-color: #ff6b6b; }
+
+    tr.row-pending { opacity: 0.45; }
+    tr.row-running { opacity: 0.5; }
+    tr.row-done    { background: #1a2e1a !important; }
+
     /* Colour coding */
     .pos { color: #51cf66; }
     .neg { color: #ff6b6b; }
@@ -185,6 +243,18 @@
 
 <h1>TradeSimulator Results</h1>
 
+<!-- Nav -->
+<div class="nav">
+  <a href="/" class="active">Simulations</a>
+  <a href="/models">Models</a>
+</div>
+
+<!-- Actions bar -->
+<div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+  <button class="btn-clear-all" id="btn-clear-all">🗑 Clear all results</button>
+  <span id="clear-status" style="font-size:0.8rem; color:#868e96;"></span>
+</div>
+
 <!-- Symbol selector -->
 <div class="symbol-bar">
   {% for sym in symbols %}
@@ -203,7 +273,8 @@
         <th colspan="3">Risk</th>
         <th colspan="4">Trades</th>
         <th colspan="2">B&amp;H</th>
-        <th colspan="2"></th>
+        <th colspan="1">Pred</th>
+        <th colspan="3"></th>
       </tr>
       <tr>
         <th data-col="0" data-type="str">Run folder</th>
@@ -223,13 +294,15 @@
         <th data-col="14" data-type="num">Avg Loss %</th>
         <th data-col="15" data-type="num">B&amp;H Ret %</th>
         <th data-col="16" data-type="num">B&amp;H Sharpe</th>
+        <th data-col="17" data-type="num">Dir Acc %</th>
         <th>Sim</th>
         <th>CV</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
       {% for r in rows %}
-      <tr>
+      <tr data-folder="{{ r.run }}" class="{{ '' if r.has_results else 'row-pending' }}">
         <td>{{ r.run }}</td>
         <td>{{ r.trading_start }}</td>
         <td>{{ r.trading_end }}</td>
@@ -263,13 +336,25 @@
           {{ "%.2f"|format(r.bh_return_pct) if r.bh_return_pct is not none else "—" }}
         </td>
         <td>{{ "%.3f"|format(r.bh_sharpe) if r.bh_sharpe is not none else "—" }}</td>
-        <td><button class="btn-chart" data-url="/image/{{ r.run }}" data-label="{{ r.run }}">&#128202;</button></td>
+        <td class="{{ 'pos' if r.dir_acc_pct and r.dir_acc_pct > 55 else 'neutral' if r.dir_acc_pct and r.dir_acc_pct > 48 else 'neg' if r.dir_acc_pct is not none else '' }}"
+            title="TP={{ r.cm_tp }} FP={{ r.cm_fp }} FN={{ r.cm_fn }} TN={{ r.cm_tn }}">
+          {{ "%.1f"|format(r.dir_acc_pct) if r.dir_acc_pct is not none else "—" }}
+        </td>
+        <td>
+          {% if r.has_results %}
+          <button class="btn-chart" data-url="/image/{{ r.run }}" data-label="{{ r.run }}">&#128202;</button>
+          {% else %}<span class="neutral" style="font-size:0.75rem">—</span>{% endif %}
+        </td>
         <td>
           {% if r.has_cv_chart %}
           <button class="btn-chart" data-url="/cv-image/{{ r.run }}" data-label="{{ r.run }} — CV backtest">&#128200;</button>
           {% else %}
           <span class="neutral" style="font-size:0.75rem">—</span>
           {% endif %}
+        </td>
+        <td style="text-align:left; white-space:nowrap;">
+          <button class="btn-action btn-rerun"  data-folder="{{ r.run }}" title="Rerun simulation">&#8635;</button>
+          <button class="btn-action btn-delete" data-folder="{{ r.run }}" title="Delete results">&#128465;</button>
         </td>
       </tr>
       {% endfor %}
@@ -378,6 +463,82 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeModal();
     });
+
+    // ── Delete / Rerun ────────────────────────────────────────────────────────
+    function rowByFolder(folder) {
+      return document.querySelector(`tr[data-folder="${folder}"]`);
+    }
+
+    async function deleteSim(folder) {
+      await fetch(`/delete-sim/${folder}`, { method: "POST" });
+      const row = rowByFolder(folder);
+      if (row) {
+        row.classList.add("row-pending");
+        // Clear stat cells (cols 4–17), leave run/dates/horizon intact
+        [...row.cells].slice(4, 18).forEach(td => td.textContent = "—");
+        // Hide sim chart button
+        const simBtn = row.querySelector(".btn-chart");
+        if (simBtn) simBtn.replaceWith(Object.assign(document.createElement("span"), {
+          className: "neutral", style: "font-size:0.75rem", textContent: "—"
+        }));
+      }
+    }
+
+    function pollRerun(folder) {
+      const row   = rowByFolder(folder);
+      const btn   = row ? row.querySelector(".btn-rerun") : null;
+      const timer = setInterval(async () => {
+        const res  = await fetch(`/sim-status/${folder}`);
+        const data = await res.json();
+        if (data.status === "done") {
+          clearInterval(timer);
+          if (row) row.classList.replace("row-running", "row-done");
+          if (btn) { btn.classList.remove("running"); btn.textContent = "⟳"; }
+          // Reload page to show updated stats
+          window.location.reload();
+        } else if (data.status === "pending") {
+          // Error during run — stopped without producing sim_log.csv
+          clearInterval(timer);
+          if (row) row.classList.remove("row-running");
+          if (btn) { btn.classList.remove("running"); btn.textContent = "⟳"; }
+        }
+      }, 5000);
+    }
+
+    async function rerunSim(folder) {
+      const row = rowByFolder(folder);
+      const btn = row ? row.querySelector(".btn-rerun") : null;
+      const res = await fetch(`/rerun-sim/${folder}`, { method: "POST" });
+      if (res.status === 409) { alert("Simulation already running."); return; }
+      if (!res.ok) { alert("Failed to start simulation."); return; }
+      if (row) row.classList.add("row-running");
+      if (btn) { btn.classList.add("running"); btn.textContent = "⏳"; }
+      pollRerun(folder);
+    }
+
+    document.querySelectorAll(".btn-delete").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (confirm(`Delete results for ${btn.dataset.folder}?`))
+          deleteSim(btn.dataset.folder);
+      });
+    });
+
+    document.querySelectorAll(".btn-rerun").forEach((btn) => {
+      btn.addEventListener("click", () => rerunSim(btn.dataset.folder));
+    });
+
+    document.getElementById("btn-clear-all").addEventListener("click", async () => {
+      const folders = [...document.querySelectorAll("tr[data-folder]")]
+        .map(r => r.dataset.folder);
+      if (!folders.length) return;
+      if (!confirm(`Delete results for all ${folders.length} visible runs?`)) return;
+      const status = document.getElementById("clear-status");
+      status.textContent = "Deleting…";
+      await Promise.all(folders.map(f => fetch(`/delete-sim/${f}`, { method: "POST" })));
+      status.textContent = "Done.";
+      window.location.reload();
+    });
+
   })();
 </script>
 

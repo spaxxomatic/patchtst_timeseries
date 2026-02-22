@@ -38,17 +38,26 @@ class TradeSimParams:
                 Path("checkpoints") / f"{symbol_clean}_{self.load_data_from_date}_{self.trading_start}"
             )
         self.model_storage_folder = Path(self.model_path) / "model"            
-        dataset_path = self.model_storage_folder / "dataset.pkl"
-        if not dataset_path.is_file():
-            raise FileNotFoundError(
-                f"Model path {self.model_storage_folder!s} is invalid, file not found: {dataset_path!s}\n"
-            )        
+      
         self.logfolder = Path("tradesimlog") / datetime.now().strftime(f"{self.traded_symbol}_%Y%m%d_%H%M%S")
         self.logfolder.mkdir(parents=True, exist_ok=True)
         self.sim_log_file = self.logfolder / "sim_log.csv"
         self.paramsfile =  self.logfolder / PARAMS_DUMPFILE
         self.sim_stats_results = self.logfolder / "simstats.json"
         dump_params_to_json(self, self.paramsfile)
+    
+    def log_error(self, error):
+        errfile:Path = Path(self.logfolder / "error.txt" )
+        with errfile.open(mode='a') as f:
+            return f.write(error + "\n")        
+
+         
+    def is_model_available(self):
+        dataset_path = self.model_storage_folder / "dataset.pkl"
+        if not dataset_path.is_file():
+            print(f"Model path {self.model_storage_folder!s} is invalid, file not found: {dataset_path!s}\n")  
+            return False
+        return True
     
     @classmethod
     def load_from_folder(cls, logfolder):
@@ -109,8 +118,8 @@ class TradeSimulData:
         load_from_date = params.load_data_from_date        
         self.period_train = Period(start=load_from_date, end=params.trading_start)
         self.period_test = Period(start=params.trading_start, end=params.trading_end)
-        self.df_train = get_df_for_period(params.tickers,self.period_train)
-        self.df_test  = get_df_for_period(params.tickers, self.period_test)
+        self.df_train = get_df_for_period(params.tickers, self.period_train, target_ticker=params.traded_symbol)
+        self.df_test  = get_df_for_period(params.tickers, self.period_test,  target_ticker=params.traded_symbol)
         
         #Load actual prices for P&L calculation (need one extra day beyond test end for next-day entry)
         ts = pd.to_datetime(self.period_test['end'])          # Timestamp('2025-10-01 00:00:00')
