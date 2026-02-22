@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ticker_data import get_ticker
 from IPython.core.inputtransformer2 import tr
 from lib.trade import Trade
 from matplotlib.pylab import mean
@@ -67,7 +68,7 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
     trader = Trader()
     portfolio_value = Trader.START_VALUE
     portfolio_value_at_entry = Trader.START_VALUE
-    current_pos = 0
+    current_trade_direction = 0
     position_return = 0
     entry_price = None
     MODEL_INPUT_LEN = _load_input_size(tradeSimParams.model_path)
@@ -76,9 +77,6 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
     )
     print("Loading data")
     simdata:TradeSimulData = TradeSimulData(tradeSimParams)
-    # Log-Header
-    with open(tradeSimParams.sim_log_file, 'w') as f_sim_log_file:
-        f_sim_log_file.write("date,pred_momentum,ci_lo_80,ci_hi_80,signal,in_market,trade_return,portfolio_value,position_return\n")
 
     # Load pre-trained model
     print ("Loading model from ", tradeSimParams.model_storage_folder)
@@ -94,6 +92,8 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
     df_full = simdata.get_full_period_data()
     traded_ticker_open = simdata.get_traded_ticker_opens()
     traded_ticker_close = simdata.get_traded_ticker_closings()
+    vix_open = simdata.get_vix_opens()
+    vix_close = simdata.get_vix_closings()    
     test_dates = simdata.get_test_dates()
     START_VALUE = trader.START_VALUE
     FEE = tradeSimParams.FEE
@@ -155,28 +155,51 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
             signal = -1
 
         return signal, trend_pred, avg_lo_80, avg_hi_80
-    print("Start simulation")
-    for i, today in enumerate(test_dates):
-        # --- Build input window: last MODEL_INPUT_LEN rows per unique_id up to today ---
+    
+    def vix_gate(today):
+        vix_o = vix_open.loc[today]
+        vix_c = vix_close.loc[today]
+        if vix_c > 25.0: 
+            return 0 
+        if (vix_c/vix_o) > 1.1: #10 pct jump today
+            return 0
+        #if (vix_c/vix_o) > 0.9: #solid drop in vix
+        #    return False               
+        return 1
+        
+        
+    def get_forecast(today):
         df_list = []
         for uid in df_full['unique_id'].unique():
             series = df_full[df_full['unique_id'] == uid].sort_values('ds')
             window = series[series['ds'] <= today].tail(MODEL_INPUT_LEN)
             if len(window) > 0:
                 df_list.append(window)
-
         df_step = pd.concat(df_list).reset_index(drop=True)
-
         # Predict next h days
-        forecast = nf.predict(df=df_step)
+        return nf.predict(df=df_step)
+
+    # Log-Header
+    with open(tradeSimParams.sim_log_file, 'w') as f_sim_log_file:
+        f_sim_log_file.write("date,pred_momentum,ci_lo_80,ci_hi_80,signal,in_market,trade_return,portfolio_value,position_return,vix_gate\n")
+    
+    for i, today in enumerate(test_dates):
+        # --- Build input window: last MODEL_INPUT_LEN rows per unique_id up to today ---
         
+        forecast = get_forecast(today)
         signal, prediction, ci_lo_80, ci_hi_80 = get_signal(forecast)
+        vix_gate_signal = vix_gate(today)
+        if vix_gate_signal < 1:            
+           signal = 0 # don't trade
+        
         # --- P&L with real prices ---
         trade_return = 0.0
 
-        if current_pos != 0:
+        if current_trade_direction != 0:
             close_today = traded_ticker_close.loc[today]
-            position_return = current_pos * (close_today - entry_price) / entry_price
+            position_return = current_trade_direction * (close_today - entry_price) / entry_price
+            if vix_gate_signal < 1:            
+                signal = SIGNAL_TRIGGER_STOPLOSS # unconditional exit
             if position_return < tradeSimParams.STOPLOSS_THRESHOLD:
                 signal = SIGNAL_TRIGGER_STOPLOSS
         else:
@@ -184,40 +207,43 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
 
         this_position_return = position_return
         day_current_signal   = signal
-        day_current_pos      = current_pos
+        day_current_pos = current_trade_direction
         # Apply cumulative-from-entry return to the portfolio value *at entry*,
         # not to the rolling portfolio (which would compound a cumulative return
         # on top of itself each day).
-        portfolio_value = portfolio_value_at_entry * (1 + this_position_return)
-
+        portfolio_value = portfolio_value_at_entry * (1 + this_position_return)        
+        
         if signal != 0: #keep position until signal inverts, tp or stoploss
-            if signal != current_pos:
-                if current_pos != 0 and entry_price is not None:
+            if signal != current_trade_direction:
+                if current_trade_direction != 0 and entry_price is not None:
+                    #exit position
                     position_return = 0
                     signal = 0
-                    current_pos = 0
+                    current_trade_direction = 0
                 portfolio_value *= (1 - FEE) # substract fee
                 portfolio_value_at_entry = portfolio_value  # keep snapshot current after every close
                 if signal != 0 and i + 1 < len(test_dates):
+                    #enter position
                     next_day = test_dates[i + 1]
                     entry_price = traded_ticker_open.loc[next_day]
-                    current_pos = signal
+                    #entry_price = traded_ticker_close.loc[next_day]
+                    current_trade_direction = signal
                 else:
                     entry_price = None
 
         ci_str = f"CI=[{ci_lo_80:+.5f},{ci_hi_80:+.5f}] " if ci_lo_80 is not None else ""
-        print(f"{today.date()} | Pred: {prediction:.5f} | {ci_str}Signal: {signal} | "
-            f"Pos: {current_pos} | Return: {trade_return:+.4f} | Port: {portfolio_value:.2f}")
+        print(f"{today.date()} | Pred: {prediction:.5f} | {ci_str}Signal: {day_current_signal} | "
+            f"Pos: {current_trade_direction} | Return: {trade_return:+.4f} | Port: {portfolio_value:.2f}")
         lo_str = f"{ci_lo_80}" if ci_lo_80 is not None else ""
         hi_str = f"{ci_hi_80}" if ci_hi_80 is not None else ""
         with open(tradeSimParams.sim_log_file, 'a') as f:
-            f.write(f"{today.date()},{prediction},{lo_str},{hi_str},{day_current_signal},{day_current_pos},{trade_return},{portfolio_value},{this_position_return}\n")
+            f.write(f"{today.date()},{prediction},{lo_str},{hi_str},{day_current_signal},{day_current_pos},{trade_return},{portfolio_value},{this_position_return},{vix_gate_signal}\n")
 
     # Close last open position — portfolio_value already reflects the last
     # close price from the final loop iteration; only the exit fee is missing.
-    if current_pos != 0 and entry_price is not None:
+    if current_trade_direction != 0 and entry_price is not None:
         last_close = traded_ticker_close.loc[test_dates[-1]]
-        final_return = current_pos * (last_close - entry_price) / entry_price
+        final_return = current_trade_direction * (last_close - entry_price) / entry_price
         portfolio_value *= (1 - FEE)
         print(f"\nFinal close | Return: {final_return:+.4f} | Port: {portfolio_value:.2f}$")
 
@@ -231,11 +257,12 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
     print(f"\n=== End value: {portfolio_value:.2f}$ (Start: 10000, Yield: {(portfolio_value/10000-1)*100:+.2f}%) ===")
     
 if __name__ == "__main__":
+    
     for signal_horizon_step in range(1,8):
-        traded_symbol = 'JPM'
+        traded_symbol = 'AAPL'
         params = TradeSimParams(
             THRESHOLD=0.001,
-            STOPLOSS_THRESHOLD= -0.01,
+            STOPLOSS_THRESHOLD= -0.002,
             TRAILING_STOP_THRESHOLD= 0.3,        
             FEE= 0.0005,
             traded_symbol = traded_symbol,

@@ -35,7 +35,8 @@ def plot_sim_results(params) -> matplotlib.figure.Figure:
     matplotlib.figure.Figure
     """
     # ── Load simulation log ──────────────────────────────────────────────────
-    df_log = pd.read_csv(params.sim_log_file, parse_dates=['date'], index_col='date')
+    df_log = pd.read_csv(params.sim_log_file, 
+                         parse_dates=['date'], index_col='date')
     df_log.index = pd.to_datetime(df_log.index).tz_localize(None).normalize()
 
     # ── Fetch raw close prices for the traded symbol ─────────────────────────
@@ -70,12 +71,38 @@ def plot_sim_results(params) -> matplotlib.figure.Figure:
     # Shade long/short periods
     for j in range(len(df_log) - 1):
         in_market = df_log['in_market'].iloc[j]
+        vix_gate = df_log['vix_gate'].iloc[j]
         if in_market == 1:
             ax1.axvspan(df_log.index[j], df_log.index[j + 1], alpha=0.08, color='green')
         elif in_market == -1:
-            ax1.axvspan(df_log.index[j], df_log.index[j + 1], alpha=0.08, color='red')
+            ax1.axvspan(df_log.index[j], df_log.index[j + 1], alpha=0.08, color='pink')
+        if vix_gate > 0:
+            ax1.axvspan(df_log.index[j], df_log.index[j + 1], alpha=0.3, color='red')
 
-    # Panel 2 – Predicted momentum + position return overlay
+
+    # Entry / exit markers on the portfolio curve
+    prev_pos = df_log['in_market'].shift(1).fillna(0)
+    next_pos = df_log['in_market'].shift(-1).fillna(0)
+
+    entry_long  = df_log[(prev_pos != 1)  & (df_log['in_market'] == 1)]
+    entry_short = df_log[(prev_pos != -1) & (df_log['in_market'] == -1)]
+    exit_long   = df_log[(df_log['in_market'] == 1)  & (next_pos != 1)]
+    exit_short  = df_log[(df_log['in_market'] == -1) & (next_pos != -1)]
+
+    ax1.scatter(entry_long.index,  entry_long['portfolio_value'],
+                marker='^', color='lime',   edgecolors='darkgreen',
+                s=90, zorder=6, label='Long entry')
+    ax1.scatter(entry_short.index, entry_short['portfolio_value'],
+                marker='v', color='tomato', edgecolors='darkred',
+                s=90, zorder=6, label='Short entry')
+    ax1.scatter(exit_long.index,   exit_long['portfolio_value'],
+                marker='o', facecolors='none', edgecolors='lime',
+                linewidths=1.8, s=70, zorder=6, label='Exit long')
+    ax1.scatter(exit_short.index,  exit_short['portfolio_value'],
+                marker='o', facecolors='none', edgecolors='tomato',
+                linewidths=1.8, s=70, zorder=6, label='Exit short')
+
+    # Panel 2 – Prediction + position return overlay
     ax2 = axes[1]
     bar_colors = [
         'green' if s == 1 else 'pink' if s == -1 else 'red' if s == -2 else 'gray'
@@ -86,8 +113,8 @@ def plot_sim_results(params) -> matplotlib.figure.Figure:
                 label=f'Threshold (±{params.THRESHOLD})')
     ax2.axhline(-params.THRESHOLD, color='red',   linestyle='--', alpha=0.5)
     ax2.axhline(0, color='black', linewidth=0.5)
-    ax2.set_ylabel('Predicted Momentum')
-    ax2.set_title('PatchTST Predicted Momentum and Position Evolution')
+    ax2.set_ylabel('Prediction')
+    ax2.set_title('PatchTST prediction and Position Evolution')
     ax2.legend(loc='upper left')
     ax2.grid(True, alpha=0.3)
 

@@ -110,6 +110,7 @@ class TradeSimulData:
     df_test:pd.DataFrame
     _df_full:pd.DataFrame = field(init=False)
     traded_ticker_raw:pd.DataFrame
+    vix_raw:pd.DataFrame
     traded_ticker:str
     params: TradeSimParams
     
@@ -126,7 +127,8 @@ class TradeSimulData:
         later_ts = (ts + pd.Timedelta(days=2)).strftime('%Y-%m-%d') # Timestamp('2025-10-03 00:00:00')
         self.traded_ticker_raw   = get_ticker(params.traded_symbol,
                                               start=self.period_test['start'], end=later_ts)        
-
+        self.vix_raw   = get_ticker('^VIX',
+                                              start=self.period_test['start'], end=later_ts)  
         self._df_full =  pd.concat([self.df_train, self.df_test]).sort_values(['unique_id', 'ds']).reset_index(drop=True)
 
         
@@ -138,6 +140,12 @@ class TradeSimulData:
 
     def get_traded_ticker_closings(self)->pd.DataFrame:
         return  self.traded_ticker_raw['Close']
+    
+    def get_vix_opens(self)->pd.DataFrame:
+        return  self.vix_raw['Open']
+    
+    def get_vix_closings(self)->pd.DataFrame:
+        return  self.vix_raw['Close']
     
     def get_test_dates(self)->list:
         return sorted(self.df_test[self.df_test['unique_id'] == f'{self.params.traded_symbol}_price']['ds'].unique())

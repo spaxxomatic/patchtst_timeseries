@@ -1,0 +1,35 @@
+{
+  "traded_symbol": "WMT",
+  "tickers": [
+    "WMT",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.75,
+  "best_params": {
+    "input_size": 100,
+    "patch_len": 16,
+    "stride": 2,
+    "encoder_layers": 3,
+    "n_heads": 4,
+    "hidden_size": 128,
+    "linear_hidden_size": 128,
+    "dropout": 0.08470237885213956,
+    "learning_rate": 0.00011101550045307833
+  },
+  "runtime": 1978,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50
+  }
+}

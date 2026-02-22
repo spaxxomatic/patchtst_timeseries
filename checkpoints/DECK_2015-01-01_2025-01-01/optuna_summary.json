@@ -1,0 +1,41 @@
+{
+  "traded_symbol": "DECK",
+  "tickers": [
+    "DECK",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.625,
+  "best_params": {
+    "input_size": 120,
+    "patch_len": 8,
+    "stride": 8,
+    "encoder_layers": 5,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 256,
+    "dropout": 0.16995244969281492,
+    "learning_rate": 0.0008363524441263766
+  },
+  "runtime": 2761,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.001344,
+    "p50": 0.004181,
+    "p75": 0.008757
+  }
+}

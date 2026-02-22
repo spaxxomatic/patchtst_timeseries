@@ -29,6 +29,7 @@ tickers = [
 ]
 from lib.tradeparams import TradeSimParams
 from lib.model_trainer import train
+tickers = ["DECK", "IT", "ARE"]
 for t in tickers:
     params = TradeSimParams(
         THRESHOLD=0.0002,
