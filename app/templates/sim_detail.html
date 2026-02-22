@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sim — {{ run_folder }}</title>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────── */
+    #hdr {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 8px 18px;
+      background: #1a1f33;
+      border-bottom: 1px solid #2a2f45;
+      flex-shrink: 0;
+      min-height: 48px;
+    }
+    #hdr a.back {
+      color: #4dabf7; text-decoration: none; font-size: 0.82rem;
+      white-space: nowrap; padding: 4px 8px; border-radius: 4px;
+      border: 1px solid #2a3060;
+    }
+    #hdr a.back:hover { background: #1e2440; }
+
+    #run-title {
+      font-family: monospace; font-size: 0.8rem; color: #8892b0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    #stats-row {
+      display: flex; gap: 8px; margin-left: auto; flex-wrap: nowrap;
+    }
+    .s-chip {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 2px 10px; border-radius: 5px;
+      background: #0f1117; border: 1px solid #2a2f45;
+      white-space: nowrap;
+    }
+    .s-chip .lbl { font-size: 0.6rem; color: #4a5280; text-transform: uppercase; letter-spacing: 0.05em; }
+    .s-chip .val { font-size: 0.78rem; font-weight: 600; }
+    .val.pos { color: #51cf66; }
+    .val.neg { color: #ff6b6b; }
+    .val.neu { color: #adb5bd; }
+
+    /* ── Main area ───────────────────────────────────────────────────── */
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    #chart-wrap { flex: 1; overflow: hidden; position: relative; }
+    #chart      { width: 100%; height: 100%; }
+
+    /* ── Detail panel ────────────────────────────────────────────────── */
+    #detail-panel {
+      width: 240px; flex-shrink: 0;
+      background: #141720; border-left: 1px solid #2a2f45;
+      overflow-y: auto; padding: 14px 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+
+    .dp-section { display: flex; flex-direction: column; gap: 7px; }
+
+    .dp-head {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #4a5280;
+      padding-bottom: 5px; border-bottom: 1px solid #2a2f45;
+    }
+
+    .dp-row {
+      display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 0.75rem;
+    }
+    .dp-row .k { color: #8892b0; }
+    .dp-row .v { color: #c0c8e0; font-weight: 500; font-family: monospace; font-size: 0.73rem; }
+    .dp-row .v.pos  { color: #51cf66; }
+    .dp-row .v.neg  { color: #ff6b6b; }
+
+    .dp-badge {
+      display: inline-block; padding: 1px 7px; border-radius: 4px;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+    }
+    .dp-badge.long  { background: rgba(81,207,102,0.12); color: #51cf66; border: 1px solid rgba(81,207,102,0.3); }
+    .dp-badge.short { background: rgba(255,107,107,0.12); color: #ff6b6b; border: 1px solid rgba(255,107,107,0.3); }
+    .dp-badge.warn  { background: rgba(255,185,0,0.12);  color: #f59f00; border: 1px solid rgba(255,185,0,0.3); }
+    .dp-badge.info  { background: rgba(77,171,247,0.12); color: #4dabf7; border: 1px solid rgba(77,171,247,0.3); }
+
+    .dp-divider { border: none; border-top: 1px solid #2a2f45; margin: 4px 0; }
+
+    .dp-hint {
+      color: #4a5280; font-size: 0.72rem; text-align: center;
+      padding: 20px 0; line-height: 1.6;
+    }
+
+    /* ── Loading overlay ─────────────────────────────────────────────── */
+    #loading {
+      position: fixed; inset: 0; background: rgba(15,17,23,0.95);
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+      font-size: 0.88rem; color: #4a5280; z-index: 200;
+    }
+    #loading.hidden { display: none; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid #2a2f45; border-top-color: #4dabf7;
+      border-radius: 50%; animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <span>Loading simulation data…</span>
+</div>
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<div id="hdr">
+  <a href="/" class="back">← Back</a>
+  <div id="run-title">{{ run_folder }}</div>
+  <div id="stats-row"></div>
+</div>
+
+<!-- ── Main ───────────────────────────────────────────────────────────── -->
+<div id="main">
+  <div id="chart-wrap">
+    <div id="chart"></div>
+  </div>
+
+  <div id="detail-panel">
+    <div id="dp-body">
+      <div class="dp-hint">
+        Click a trade marker<br>(▲▼ entry, ● exit)<br>to explore trade details
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+const RUN_FOLDER = {{ run_folder | tojson }};
+
+// ── Palette ────────────────────────────────────────────────────────────────
+const C = {
+  bg:      '#0f1117',
+  panel:   '#141720',
+  grid:    '#1a1f33',
+  border:  '#2a2f45',
+  txt:     '#8892b0',
+  long:    '#51cf66',
+  longFg:  '#2f9e44',
+  short:   '#ff6b6b',
+  shortFg: '#c92a2a',
+  strat:   '#4dabf7',
+  bh:      'rgba(160,160,180,0.5)',
+  ci:      'rgba(74,144,226,0.14)',
+  ciLine:  'rgba(74,144,226,0.30)',
+  pred:    'rgba(255,200,80,0.85)',
+};
+
+// ── Entry point ────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const resp = await fetch(`/sim-data/${RUN_FOLDER}`);
+    if (!resp.ok) throw new Error(resp.statusText);
+    const data = await resp.json();
+    renderHeader(data);
+    buildChart(data);
+    renderSummaryPanel(data);
+  } catch (e) {
+    document.getElementById('loading').innerHTML =
+      `<span style="color:#ff6b6b">Error: ${e.message}</span>`;
+  }
+}
+
+// ── Header stats chips ─────────────────────────────────────────────────────
+function renderHeader(data) {
+  const ps   = data.perf_stats || {};
+  const strat = ps.strategy    || {};
+  const defs = [
+    { lbl: 'Return',  val: ps.strategy_return_pct,    fmt: pct,    pos: v => v > 0  },
+    { lbl: 'B&H Ret', val: ps.bh_return_pct,          fmt: pct,    pos: v => v > 0  },
+    { lbl: 'Sharpe',  val: strat.sharpe,               fmt: dec3,   pos: v => v > 1  },
+    { lbl: 'Max DD',  val: strat.max_drawdown_pct,     fmt: pct,    pos: v => v > -10 },
+    { lbl: 'Win %',   val: ps.win_pct,                 fmt: v => v.toFixed(1) + '%', pos: v => v > 50 },
+    { lbl: 'Trades',  val: ps.n_trades,                fmt: v => v, pos: () => true },
+  ];
+
+  const row = document.getElementById('stats-row');
+  defs.forEach(({ lbl, val, fmt, pos }) => {
+    if (val == null) return;
+    const cls = pos(val) ? 'pos' : 'neg';
+    row.insertAdjacentHTML('beforeend',
+      `<div class="s-chip"><span class="lbl">${lbl}</span><span class="val ${cls}">${fmt(val)}</span></div>`);
+  });
+  document.title = `Sim — ${data.symbol} — ${RUN_FOLDER}`;
+  document.getElementById('loading').classList.add('hidden');
+}
+
+// ── Summary in side panel (default state) ─────────────────────────────────
+function renderSummaryPanel(data) {
+  const ps  = data.perf_stats || {};
+  const st  = ps.strategy || {};
+  const bh  = ps.buy_and_hold || {};
+  const tr  = data.trades || [];
+  const wins   = tr.filter(t => (t.final_return || 0) > 0).length;
+  const losses = tr.filter(t => (t.final_return || 0) <= 0).length;
+
+  const body = document.getElementById('dp-body');
+  body.innerHTML = `
+    <div class="dp-section">
+      <div class="dp-head">Overview</div>
+      ${dpRow('Symbol',   data.symbol)}
+      ${dpRow('Period',   `${data.params?.trading_start} → ${data.params?.trading_end}`)}
+      ${dpRow('Horizon',  data.params?.signal_horizon_steps + ' steps')}
+      ${dpRow('Threshold', data.params?.THRESHOLD != null ? (data.params.THRESHOLD * 100).toFixed(4) + '%' : '—')}
+    </div>
+    <hr class="dp-divider">
+    <div class="dp-section">
+      <div class="dp-head">Performance</div>
+      ${dpRow('Return',      pct(ps.strategy_return_pct),  retCls(ps.strategy_return_pct))}
+      ${dpRow('Ann. Return', pct(st.ann_return_pct),       retCls(st.ann_return_pct))}
+      ${dpRow('Ann. Vol',    pct(st.ann_vol_pct))}
+      ${dpRow('Sharpe',      dec3(st.sharpe),              st.sharpe > 1 ? 'pos' : 'neu')}
+      ${dpRow('Sortino',     dec3(st.sortino),             st.sortino > 1 ? 'pos' : 'neu')}
+      ${dpRow('Calmar',      dec3(st.calmar),              st.calmar > 1 ? 'pos' : 'neu')}
+      ${dpRow('Max DD',      pct(st.max_drawdown_pct),     st.max_drawdown_pct < -15 ? 'neg' : 'neu')}
+    </div>
+    <hr class="dp-divider">
+    <div class="dp-section">
+      <div class="dp-head">Trades</div>
+      ${dpRow('Total',      ps.n_trades)}
+      ${dpRow('Winners',    `${wins} <span class="dp-badge long">${ps.win_pct != null ? ps.win_pct.toFixed(1) + '%' : ''}</span>`)}
+      ${dpRow('Losers',     losses)}
+      ${dpRow('Avg Win',    pct(ps.avg_win_pct),   'pos')}
+      ${dpRow('Avg Loss',   pct(ps.avg_loss_pct),  'neg')}
+    </div>
+    <hr class="dp-divider">
+    <div class="dp-section">
+      <div class="dp-head">B&amp;H Comparison</div>
+      ${dpRow('B&H Return', pct(ps.bh_return_pct), retCls(ps.bh_return_pct))}
+      ${dpRow('B&H Sharpe', dec3(bh.sharpe))}
+      ${dpRow('B&H Max DD', pct(bh.max_drawdown_pct))}
+    </div>
+  `;
+}
+
+// ── Chart ─────────────────────────────────────────────────────────────────
+function buildChart(data) {
+  const { sim_log: sl, ohlcv, bh, trades, symbol } = data;
+  const dates  = sl.map(r => r.date);
+  const pv     = sl.map(r => r.portfolio_value);
+  const pred   = sl.map(r => r.pred_momentum);
+  const ciLo   = sl.map(r => r.ci_lo_80);
+  const ciHi   = sl.map(r => r.ci_hi_80);
+
+  // OHLCV lookup map
+  const priceMap = Object.fromEntries(ohlcv.map(r => [r.date, r]));
+
+  // ── Trade marker arrays ──────────────────────────────────────────────
+  const longEntries = [], shortEntries = [], exitPts = [];
+  trades.forEach((t, ti) => {
+    const eIdx = sl.findIndex(r => r.date === t.entry_date);
+    const xIdx = sl.findIndex(r => r.date === t.exit_date);
+    if (eIdx >= 0) {
+      const pt = { x: t.entry_date, y: pv[eIdx], ti };
+      (t.direction === 1 ? longEntries : shortEntries).push(pt);
+    }
+    if (xIdx >= 0) {
+      exitPts.push({ x: t.exit_date, y: pv[xIdx], ti, ret: t.final_return || 0 });
+    }
+  });
+
+  // ── Predicted-close overlay (price panel) ───────────────────────────
+  const predCloseY = dates.map((d, i) => {
+    const r = priceMap[d];
+    return (r && pred[i] != null) ? +(r.close * Math.exp(pred[i])).toFixed(3) : null;
+  });
+  const ciLoPriceY = dates.map((d, i) => {
+    const r = priceMap[d];
+    return (r && ciLo[i] != null) ? +(r.close * Math.exp(ciLo[i])).toFixed(3) : null;
+  });
+  const ciHiPriceY = dates.map((d, i) => {
+    const r = priceMap[d];
+    return (r && ciHi[i] != null) ? +(r.close * Math.exp(ciHi[i])).toFixed(3) : null;
+  });
+
+  // ── Hover customdata ────────────────────────────────────────────────
+  const stratCD = sl.map(r => [
+    r.portfolio_value,
+    (r.portfolio_value / 10000 - 1) * 100,
+    r.signal,
+    r.pred_momentum != null ? (r.pred_momentum * 100).toFixed(5) : '—',
+    r.vix_gate ? '' : ' 🚫VIX',
+  ]);
+
+  const predCD = sl.map(r => [
+    r.pred_momentum != null ? (r.pred_momentum * 100).toFixed(5) : '—',
+    r.ci_lo_80  != null ? (r.ci_lo_80 * 100).toFixed(4)  : '—',
+    r.ci_hi_80  != null ? (r.ci_hi_80 * 100).toFixed(4)  : '—',
+    fmtSig(r.signal),
+    r.vix_gate ? '' : ' 🚫',
+  ]);
+
+  // ── Traces ──────────────────────────────────────────────────────────
+  const traces = [
+
+    // ── ROW 1 · Portfolio PnL ─────────────────────────────────────────
+
+    {   // B&H baseline
+      name: 'Buy & Hold', legendgroup: 'pnl', legendgrouptitle: { text: 'Portfolio' },
+      x: bh.map(r => r.date), y: bh.map(r => r.value),
+      type: 'scatter', mode: 'lines',
+      line: { color: C.bh, dash: 'dash', width: 1.5 },
+      hovertemplate: '<b>B&H</b> $%{y:,.0f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y',
+    },
+    {   // Strategy equity curve
+      name: 'Strategy', legendgroup: 'pnl',
+      x: dates, y: pv,
+      customdata: stratCD,
+      type: 'scatter', mode: 'lines',
+      line: { color: C.strat, width: 2 },
+      fill: 'tozeroy', fillcolor: 'rgba(77,171,247,0.04)',
+      hovertemplate:
+        '<b>%{x}</b><br>' +
+        'Portfolio: <b>$%{customdata[0]:,.0f}</b><br>' +
+        'Return: %{customdata[1]:+.2f}%<br>' +
+        'Signal: %{customdata[2]}<br>' +
+        'Pred: %{customdata[3]}%' +
+        '%{customdata[4]}<extra></extra>',
+      xaxis: 'x', yaxis: 'y',
+    },
+    {   // Long entries (triangle-up)
+      name: 'Long Entry', legendgroup: 'markers', legendgrouptitle: { text: 'Trades' },
+      x: longEntries.map(p => p.x), y: longEntries.map(p => p.y),
+      customdata: longEntries.map(p => [p.ti, 'entry']),
+      type: 'scatter', mode: 'markers',
+      marker: { symbol: 'triangle-up', size: 12, color: C.long,
+                line: { color: C.longFg, width: 1.5 } },
+      hovertemplate: '<b>▲ Long Entry</b><br>%{x}<br>$%{y:,.0f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y',
+    },
+    {   // Short entries (triangle-down)
+      name: 'Short Entry', legendgroup: 'markers',
+      x: shortEntries.map(p => p.x), y: shortEntries.map(p => p.y),
+      customdata: shortEntries.map(p => [p.ti, 'entry']),
+      type: 'scatter', mode: 'markers',
+      marker: { symbol: 'triangle-down', size: 12, color: C.short,
+                line: { color: C.shortFg, width: 1.5 } },
+      hovertemplate: '<b>▼ Short Entry</b><br>%{x}<br>$%{y:,.0f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y',
+    },
+    {   // Exit markers (coloured by P&L)
+      name: 'Exit', legendgroup: 'markers',
+      x: exitPts.map(p => p.x), y: exitPts.map(p => p.y),
+      customdata: exitPts.map(p => [p.ti, 'exit', (p.ret * 100).toFixed(3)]),
+      type: 'scatter', mode: 'markers',
+      marker: {
+        symbol: 'circle', size: 9,
+        color:  exitPts.map(p => p.ret > 0 ? 'rgba(81,207,102,0.75)' : 'rgba(255,107,107,0.75)'),
+        line:   { width: 1.5,
+                  color: exitPts.map(p => p.ret > 0 ? C.longFg : C.shortFg) },
+      },
+      hovertemplate:
+        '<b>● Exit</b><br>%{x}<br>$%{y:,.0f}<br>' +
+        'P&L: %{customdata[2]}%<extra></extra>',
+      xaxis: 'x', yaxis: 'y',
+    },
+
+    // ── ROW 2 · Price + positions ─────────────────────────────────────
+
+    {   // Candlestick
+      name: symbol, showlegend: true,
+      x: ohlcv.map(r => r.date),
+      open:  ohlcv.map(r => r.open),
+      high:  ohlcv.map(r => r.high),
+      low:   ohlcv.map(r => r.low),
+      close: ohlcv.map(r => r.close),
+      type: 'candlestick',
+      increasing: { line: { color: C.long },  fillcolor: C.long  },
+      decreasing: { line: { color: C.short }, fillcolor: C.short },
+      xaxis: 'x', yaxis: 'y2',
+    },
+    {   // CI price band — lower bound (invisible reference line)
+      name: 'CI lo (price)', showlegend: false,
+      x: dates, y: ciLoPriceY,
+      type: 'scatter', mode: 'lines',
+      line: { color: 'transparent' },
+      hoverinfo: 'skip',
+      xaxis: 'x', yaxis: 'y2',
+    },
+    {   // CI price band — upper bound (fills to previous = lower)
+      name: '80% CI (price)',
+      x: dates, y: ciHiPriceY,
+      type: 'scatter', mode: 'lines',
+      fill: 'tonexty', fillcolor: 'rgba(255,200,80,0.07)',
+      line: { color: 'rgba(255,200,80,0.2)', width: 1 },
+      hovertemplate: 'CI hi (price): %{y:.2f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y2',
+    },
+    {   // Predicted next-close scatter (toggle-able via legend)
+      name: 'Pred. Close', visible: 'legendonly',
+      x: dates, y: predCloseY,
+      type: 'scatter', mode: 'markers',
+      marker: { symbol: 'line-ew-open', size: 10, color: C.pred,
+                line: { color: C.pred, width: 2.5 } },
+      hovertemplate: 'Pred. Close: %{y:.2f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y2',
+    },
+
+    // ── ROW 3 · Prediction momentum ──────────────────────────────────
+
+    {   // CI momentum band — lo (invisible reference)
+      name: 'CI lo (mom)', showlegend: false,
+      x: dates, y: ciLo,
+      type: 'scatter', mode: 'lines',
+      line: { color: 'transparent' },
+      hoverinfo: 'skip',
+      xaxis: 'x', yaxis: 'y3',
+    },
+    {   // CI momentum band — hi (fills to lo)
+      name: '80% CI',
+      x: dates, y: ciHi,
+      type: 'scatter', mode: 'lines',
+      fill: 'tonexty', fillcolor: C.ci,
+      line: { color: C.ciLine, width: 0.5 },
+      hovertemplate: 'CI hi: %{y:.5f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y3',
+    },
+    {   // Prediction momentum bars
+      name: 'Pred. Momentum',
+      x: dates, y: pred,
+      customdata: predCD,
+      type: 'bar',
+      marker: {
+        color: pred.map(v =>
+          v == null    ? 'rgba(100,100,100,0.35)' :
+          v > 0        ? 'rgba(81,207,102,0.7)'   :
+                         'rgba(255,107,107,0.7)'
+        ),
+      },
+      hovertemplate:
+        '<b>%{x}</b><br>' +
+        'Pred: %{customdata[0]}%<br>' +
+        'CI: [%{customdata[1]}%, %{customdata[2]}%]<br>' +
+        'Signal: %{customdata[3]}%{customdata[4]}<extra></extra>',
+      xaxis: 'x', yaxis: 'y3',
+    },
+  ];
+
+  // ── Position background shapes (price panel) ────────────────────────
+  const shapes = buildPositionShapes(sl);
+
+  // ── Annotations: sub-panel labels ────────────────────────────────────
+  const annotations = [
+    ann(0.005, 1.005, 'Portfolio vs Buy & Hold'),
+    ann(0.005, 0.645, `${symbol} — Price & CI`),
+    ann(0.005, 0.255, 'Prediction Momentum + 80% CI'),
+  ];
+
+  // ── Layout ──────────────────────────────────────────────────────────
+  const h = document.getElementById('chart-wrap').offsetHeight || (window.innerHeight - 52);
+  const layout = {
+    paper_bgcolor: C.bg,
+    plot_bgcolor:  C.bg,
+    font: { color: C.txt, family: 'system-ui, sans-serif', size: 11 },
+    height: h,
+    margin: { t: 24, b: 36, l: 68, r: 14 },
+
+    // All traces share this x-axis → pan/zoom is synchronised across all rows
+    xaxis: {
+      domain: [0, 1], type: 'date',
+      gridcolor: C.grid, gridwidth: 1,
+      linecolor: C.border, tickcolor: C.border,
+      tickfont: { size: 10, color: C.txt },
+      rangeslider: { visible: false },
+      showspikes: true, spikecolor: '#3a4060', spikewidth: 1, spikedash: 'dot',
+    },
+
+    yaxis: {          // ── Row 1: portfolio
+      domain: [0.70, 1.00],
+      title: { text: 'Portfolio ($)', standoff: 5, font: { size: 10 } },
+      gridcolor: C.grid, linecolor: C.border,
+      tickformat: '$,.0f', tickfont: { size: 10 },
+      zerolinecolor: '#3a4060',
+    },
+    yaxis2: {         // ── Row 2: price
+      domain: [0.30, 0.66],
+      title: { text: 'Price', standoff: 5, font: { size: 10 } },
+      gridcolor: C.grid, linecolor: C.border,
+      tickformat: '.2f', tickfont: { size: 10 },
+    },
+    yaxis3: {         // ── Row 3: prediction
+      domain: [0.00, 0.26],
+      title: { text: 'Pred (log-return)', standoff: 5, font: { size: 10 } },
+      gridcolor: C.grid, linecolor: C.border,
+      zerolinecolor: '#3a4060', zerolinewidth: 1,
+      tickformat: '.4f', tickfont: { size: 10 },
+    },
+
+    shapes,
+    annotations,
+
+    legend: {
+      bgcolor: 'rgba(26,31,51,0.92)', bordercolor: C.border, borderwidth: 1,
+      font: { size: 10 },
+      x: 0.005, y: 0.995, xanchor: 'left', yanchor: 'top',
+      tracegroupgap: 6,
+    },
+
+    hoverlabel: {
+      bgcolor: '#1a1f33', bordercolor: C.border,
+      font: { color: '#e0e0e0', size: 11 },
+    },
+    hovermode: 'closest',
+    dragmode:  'zoom',
+    selectdirection: 'h',
+  };
+
+  const config = {
+    responsive: true,
+    displaylogo: false,
+    modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
+    toImageButtonOptions: {
+      format: 'png', filename: RUN_FOLDER, width: 1800, height: 960,
+    },
+  };
+
+  Plotly.newPlot('chart', traces, layout, config);
+
+  // ── Click handler ────────────────────────────────────────────────────
+  document.getElementById('chart').on('plotly_click', evt => {
+    const pt = evt.points[0];
+    if (!pt.customdata) return;
+    const ti = pt.customdata[0];
+    if (ti != null && data.trades[ti]) {
+      showTradeDetail(data.trades[ti], ti, data, priceMap);
+    }
+  });
+
+  // Resize chart when window resizes
+  window.addEventListener('resize', () => {
+    const newH = document.getElementById('chart-wrap').offsetHeight || (window.innerHeight - 52);
+    Plotly.relayout('chart', { height: newH });
+  });
+}
+
+// ── Position background shapes (behind price candles) ─────────────────────
+function buildPositionShapes(sl) {
+  const shapes = [];
+  let runStart = null, runDir = 0;
+  for (let i = 0; i < sl.length; i++) {
+    const im = sl[i].in_market;
+    if (im !== runDir) {
+      if (runDir !== 0 && runStart != null)
+        shapes.push(posRect(runStart, sl[i].date, runDir));
+      runDir = im;
+      runStart = sl[i].date;
+    }
+  }
+  if (runDir !== 0 && runStart != null && sl.length > 0)
+    shapes.push(posRect(runStart, sl[sl.length - 1].date, runDir));
+  return shapes;
+}
+
+function posRect(x0, x1, dir) {
+  return {
+    type: 'rect', layer: 'below',
+    x0, x1, y0: 0, y1: 1,
+    xref: 'x', yref: 'y2 domain',
+    fillcolor: dir === 1
+      ? 'rgba(81,207,102,0.065)'
+      : 'rgba(255,107,107,0.065)',
+    line: { width: 0 },
+  };
+}
+
+// ── Trade detail side panel ────────────────────────────────────────────────
+function showTradeDetail(trade, idx, data, priceMap) {
+  const dir    = trade.direction === 1 ? 'LONG' : 'SHORT';
+  const dirCls = trade.direction === 1 ? 'long' : 'short';
+  const ret    = (trade.final_return || 0) * 100;
+  const retCls = ret >= 0 ? 'pos' : 'neg';
+  const retStr = (ret >= 0 ? '+' : '') + ret.toFixed(3) + '%';
+
+  const allTrades = data.trades || [];
+  const tradeNum  = idx + 1;
+  const tradeOf   = allTrades.length;
+
+  // Prev / Next navigation
+  const prevIdx = idx > 0               ? idx - 1 : null;
+  const nextIdx = idx < tradeOf - 1     ? idx + 1 : null;
+
+  const entryOHLCV = priceMap[trade.entry_date];
+  const exitOHLCV  = priceMap[trade.exit_date];
+  const entryPrice = entryOHLCV?.open;    // entry fills at next-day open
+  const exitPrice  = exitOHLCV?.close;
+
+  // Compute P&L in dollar terms
+  const entryPV = trade.entry_portfolio;
+  const exitPV  = trade.exit_portfolio;
+  const pnlDollar = (exitPV != null && entryPV != null)
+    ? ((exitPV - entryPV) >= 0 ? '+' : '') + (exitPV - entryPV).toFixed(2)
+    : '—';
+
+  // Duration
+  const dur = daysBetween(trade.entry_date, trade.exit_date);
+
+  // CI width
+  const ciWidth = (trade.entry_ci_lo != null && trade.entry_ci_hi != null)
+    ? ((trade.entry_ci_hi - trade.entry_ci_lo) * 100).toFixed(4) + '%'
+    : '—';
+
+  // Direction of prediction vs actual return
+  const predOK = trade.entry_pred != null && (
+    (trade.entry_pred > 0 && ret > 0) ||
+    (trade.entry_pred < 0 && ret < 0)
+  );
+
+  const nav = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+      <button class="nav-btn" onclick="navTrade(${prevIdx}, event)" ${prevIdx == null ? 'disabled' : ''}>‹ Prev</button>
+      <span style="font-size:0.72rem; color:${C.txt}">Trade ${tradeNum} / ${tradeOf}</span>
+      <button class="nav-btn" onclick="navTrade(${nextIdx}, event)" ${nextIdx == null ? 'disabled' : ''}>Next ›</button>
+    </div>`;
+
+  document.getElementById('dp-body').innerHTML = `
+    <style>
+      .nav-btn { background:#1e2440; border:1px solid #2a3060; color:#4dabf7;
+                 border-radius:4px; padding:2px 8px; font-size:0.72rem; cursor:pointer; }
+      .nav-btn:disabled { opacity:0.3; cursor:default; }
+      .nav-btn:hover:not(:disabled) { background:#2a3a60; }
+    </style>
+    ${nav}
+    <div class="dp-section">
+      <div class="dp-head">Trade #${tradeNum}</div>
+      ${dpRow('Direction',   `<span class="dp-badge ${dirCls}">${dir}</span>`)}
+      ${dpRow('Result',      `<span class="${retCls}">${retStr}</span>`)}
+      ${dpRow('P&L ($)',     `<span class="${retCls}">${pnlDollar}</span>`)}
+    </div>
+    <hr class="dp-divider">
+    <div class="dp-section">
+      <div class="dp-head">Timing</div>
+      ${dpRow('Entry',    trade.entry_date)}
+      ${dpRow('Exit',     trade.exit_date)}
+      ${dpRow('Duration', dur + ' cal. days')}
+      ${trade.is_stoploss ? dpRow('Exit type', '<span class="dp-badge warn">STOP LOSS</span>') : ''}
+      ${trade.is_open     ? dpRow('Status',    '<span class="dp-badge warn">OPEN</span>') : ''}
+    </div>
+    <hr class="dp-divider">
+    <div class="dp-section">
+      <div class="dp-head">Price</div>
+      ${dpRow('Entry (open)', entryPrice != null ? '$' + entryPrice.toFixed(2) : '—')}
+      ${dpRow('Exit (close)', exitPrice  != null ? '$' + exitPrice.toFixed(2) : '—')}
+    </div>
+    <hr class="dp-divider">
+    <div class="dp-section">
+      <div class="dp-head">Signal at Entry</div>
+      ${dpRow('Pred. (log ret)', trade.entry_pred != null ? (trade.entry_pred * 100).toFixed(5) + '%' : '—')}
+      ${dpRow('CI lo-80',  trade.entry_ci_lo != null ? (trade.entry_ci_lo * 100).toFixed(4) + '%' : '—')}
+      ${dpRow('CI hi-80',  trade.entry_ci_hi != null ? (trade.entry_ci_hi * 100).toFixed(4) + '%' : '—')}
+      ${dpRow('CI width',  ciWidth)}
+      ${dpRow('Pred correct', predOK
+        ? '<span class="dp-badge long">✓ YES</span>'
+        : trade.entry_pred != null
+          ? '<span class="dp-badge short">✗ NO</span>'
+          : '—')}
+    </div>
+    <hr class="dp-divider">
+    <div class="dp-section">
+      <div class="dp-head">Portfolio</div>
+      ${dpRow('Value at entry', entryPV != null ? '$' + entryPV.toFixed(0) : '—')}
+      ${dpRow('Value at exit',  exitPV  != null ? '$' + exitPV.toFixed(0)  : '—')}
+    </div>
+  `;
+
+  // Store current data reference for navigation
+  window._chartData     = data;
+  window._chartPriceMap = priceMap;
+}
+
+function navTrade(idx, e) {
+  e.stopPropagation();
+  if (idx == null || !window._chartData) return;
+  const t = window._chartData.trades[idx];
+  if (t) showTradeDetail(t, idx, window._chartData, window._chartPriceMap);
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────
+function dpRow(k, v, cls) {
+  const vc = cls ? ` ${cls}` : '';
+  return `<div class="dp-row"><span class="k">${k}</span><span class="v${vc}">${v ?? '—'}</span></div>`;
+}
+
+function ann(x, y, text) {
+  return {
+    text, xref: 'paper', yref: 'paper', x, y,
+    xanchor: 'left', yanchor: 'bottom',
+    showarrow: false, font: { size: 9, color: '#4a5280' },
+  };
+}
+
+function pct(v)  { return v != null ? (v >= 0 ? '+' : '') + v.toFixed(2) + '%' : '—'; }
+function dec3(v) { return v != null ? v.toFixed(3) : '—'; }
+function retCls(v) { return v == null ? 'neu' : v > 0 ? 'pos' : 'neg'; }
+
+function fmtSig(s) {
+  if (s ===  1) return '▲ Long';
+  if (s === -1) return '▼ Short';
+  if (s === -2) return '⚡ Stop';
+  return '○ Flat';
+}
+
+function daysBetween(d1, d2) {
+  return Math.round((new Date(d2) - new Date(d1)) / 86400000);
+}
+
+init();
+</script>
+
+</body>
+</html>

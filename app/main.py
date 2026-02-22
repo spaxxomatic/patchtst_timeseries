@@ -123,6 +123,146 @@ def _do_rerun(run_folder: str):
     run_simulation(params)
 
 
+@app.get("/sim-detail/{run_folder}", response_class=HTMLResponse)
+async def sim_detail(request: Request, run_folder: str):
+    folder = TRADESIMLOG / run_folder
+    if not (folder / "sim_log.csv").exists():
+        raise HTTPException(status_code=404, detail="sim_log.csv not found")
+    return templates.TemplateResponse("sim_detail.html", {
+        "request": request,
+        "run_folder": run_folder,
+    })
+
+
+@app.get("/sim-data/{run_folder}")
+async def sim_data_api(run_folder: str):
+    import pandas as pd
+    from ticker_data import get_ticker
+
+    folder   = TRADESIMLOG / run_folder
+    sim_path = folder / "sim_log.csv"
+    par_path = folder / "tradesimparams.json"
+
+    if not sim_path.exists():
+        raise HTTPException(status_code=404, detail="sim_log.csv not found")
+
+    params        = json.loads(par_path.read_text()) if par_path.exists() else {}
+    symbol        = params.get("traded_symbol", "")
+    trading_start = params.get("trading_start", "")
+    trading_end   = params.get("trading_end", "")
+
+    # ── Sim log ──────────────────────────────────────────────────────────
+    df = pd.read_csv(sim_path, parse_dates=["date"])
+    has_vix = "vix_gate" in df.columns
+
+    sim_rows = []
+    for _, row in df.iterrows():
+        sim_rows.append({
+            "date":            row["date"].strftime("%Y-%m-%d"),
+            "pred_momentum":   _sf(row.get("pred_momentum")),
+            "ci_lo_80":        _sf(row.get("ci_lo_80")),
+            "ci_hi_80":        _sf(row.get("ci_hi_80")),
+            "signal":          int(row["signal"]) if pd.notna(row.get("signal")) else 0,
+            "in_market":       int(row["in_market"]) if pd.notna(row.get("in_market")) else 0,
+            "portfolio_value": _sf(row.get("portfolio_value")),
+            "position_return": _sf(row.get("position_return")) or 0.0,
+            "vix_gate":        (str(row["vix_gate"]).lower() not in ("false", "0")) if has_vix else True,
+        })
+
+    # ── OHLCV price data ─────────────────────────────────────────────────
+    ohlcv = []
+    if symbol and trading_start and trading_end:
+        try:
+            price_df = get_ticker(symbol, trading_start, trading_end)
+            for dt, pr in price_df.iterrows():
+                ohlcv.append({
+                    "date":  dt.strftime("%Y-%m-%d"),
+                    "open":  round(float(pr["Open"]),  4),
+                    "high":  round(float(pr["High"]),  4),
+                    "low":   round(float(pr["Low"]),   4),
+                    "close": round(float(pr["Close"]), 4),
+                })
+        except Exception:
+            pass
+
+    # ── Buy & Hold baseline ──────────────────────────────────────────────
+    bh = []
+    if ohlcv:
+        c0 = ohlcv[0]["close"]
+        for row in ohlcv:
+            bh.append({"date": row["date"], "value": round(10_000.0 * row["close"] / c0, 4)})
+
+    # ── Trade detection ──────────────────────────────────────────────────
+    trades = _detect_trades(sim_rows)
+
+    # ── Perf stats ───────────────────────────────────────────────────────
+    perf = {}
+    pf = folder / "perf_stats.json"
+    if pf.exists():
+        perf = json.loads(pf.read_text())
+
+    return JSONResponse({
+        "run_folder":  run_folder,
+        "symbol":      symbol,
+        "sim_log":     sim_rows,
+        "ohlcv":       ohlcv,
+        "bh":          bh,
+        "trades":      trades,
+        "perf_stats":  perf,
+        "params":      {k: params[k] for k in [
+            "THRESHOLD", "STOPLOSS_THRESHOLD", "FEE",
+            "signal_horizon_steps", "trading_start", "trading_end",
+        ] if k in params},
+    })
+
+
+def _sf(v):
+    """Safe float: returns None for NaN/None/non-numeric."""
+    try:
+        f = float(v)
+        return None if f != f else f   # NaN → None
+    except Exception:
+        return None
+
+
+def _detect_trades(sim_rows: list[dict]) -> list[dict]:
+    """Scan sim_log rows and return one dict per trade."""
+    trades, current, prev_im = [], None, 0
+    for i, row in enumerate(sim_rows):
+        im = row["in_market"]
+        if prev_im == 0 and im != 0:
+            current = {
+                "entry_date":      row["date"],
+                "direction":       im,
+                "entry_pred":      row["pred_momentum"],
+                "entry_ci_lo":     row["ci_lo_80"],
+                "entry_ci_hi":     row["ci_hi_80"],
+                "entry_portfolio": row["portfolio_value"],
+            }
+        elif prev_im != 0 and im == 0 and current is not None:
+            prev = sim_rows[i - 1]
+            current.update({
+                "exit_date":      row["date"],
+                "final_return":   prev.get("position_return", 0.0),
+                "exit_portfolio": prev.get("portfolio_value"),
+                "is_stoploss":    prev.get("signal") == -2,
+            })
+            trades.append(current)
+            current = None
+        prev_im = im
+
+    if current is not None and sim_rows:
+        last = sim_rows[-1]
+        current.update({
+            "exit_date":      last["date"],
+            "final_return":   last.get("position_return", 0.0),
+            "exit_portfolio": last.get("portfolio_value"),
+            "is_open":        True,
+        })
+        trades.append(current)
+    return trades
+
+
 @app.post("/rerun-sim/{run_folder}")
 async def rerun_sim(run_folder: str, background_tasks: BackgroundTasks):
     folder = TRADESIMLOG / run_folder
