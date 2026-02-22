@@ -1,0 +1,34 @@
+{
+  "traded_symbol": "KO",
+  "trading_start": "2024-01-01",
+  "trading_end": "2024-12-01",
+  "signal_horizon_steps": 3,
+  "strategy_return_pct": -5.3444,
+  "bh_return_pct": 6.8713,
+  "signal_changes": 115,
+  "long_days": 121,
+  "short_days": 50,
+  "flat_days": 59,
+  "n_trades": 53,
+  "n_winners": 23,
+  "n_losers": 30,
+  "win_pct": 43.4,
+  "avg_win_pct": 1.3929,
+  "avg_loss_pct": -1.0585,
+  "strategy": {
+    "ann_return_pct": -5.7888,
+    "ann_vol_pct": 10.8251,
+    "max_drawdown_pct": -9.5227,
+    "sharpe": -0.5348,
+    "sortino": -0.7715,
+    "calmar": -0.6079
+  },
+  "buy_and_hold": {
+    "ann_return_pct": 7.5527,
+    "ann_vol_pct": 12.6423,
+    "max_drawdown_pct": -15.4362,
+    "sharpe": 0.5974,
+    "sortino": 0.9491,
+    "calmar": 0.4893
+  }
+}

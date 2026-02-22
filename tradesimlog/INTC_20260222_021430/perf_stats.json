@@ -1,0 +1,34 @@
+{
+  "traded_symbol": "INTC",
+  "trading_start": "2025-01-01",
+  "trading_end": "2025-12-01",
+  "signal_horizon_steps": 4,
+  "strategy_return_pct": 5.628,
+  "bh_return_pct": 97.2763,
+  "signal_changes": 137,
+  "long_days": 79,
+  "short_days": 72,
+  "flat_days": 76,
+  "n_trades": 75,
+  "n_winners": 29,
+  "n_losers": 46,
+  "win_pct": 38.67,
+  "avg_win_pct": 4.597,
+  "avg_loss_pct": -2.4332,
+  "strategy": {
+    "ann_return_pct": 6.3259,
+    "ann_vol_pct": 48.8214,
+    "max_drawdown_pct": -23.1773,
+    "sharpe": 0.1296,
+    "sortino": 0.1971,
+    "calmar": 0.2729
+  },
+  "buy_and_hold": {
+    "ann_return_pct": 112.6043,
+    "ann_vol_pct": 65.5022,
+    "max_drawdown_pct": -33.808,
+    "sharpe": 1.7191,
+    "sortino": 3.3687,
+    "calmar": 3.3307
+  }
+}

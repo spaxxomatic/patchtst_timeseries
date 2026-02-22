@@ -1,0 +1,4 @@
+Tickers: ['^SPX', 'INTC']
+Period: {'start': '2020-06-01', 'end': '2025-01-01'}
+Best params: {'input_size': 60, 'patch_len': 4, 'stride': 8, 'encoder_layers': 3, 'n_heads': 8, 'hidden_size': 64, 'linear_hidden_size': 32, 'dropout': 0.05485266138469776, 'learning_rate': 0.0006602915280828795}
+Best hit rate: 0.75

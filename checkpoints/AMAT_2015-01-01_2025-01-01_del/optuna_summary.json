@@ -1,0 +1,33 @@
+{
+  "traded_symbol": "AMAT",
+  "tickers": [
+    "AMAT",
+    "^SPX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 1.0,
+  "best_params": {
+    "input_size": 60,
+    "patch_len": 8,
+    "stride": 2,
+    "encoder_layers": 3,
+    "n_heads": 4,
+    "hidden_size": 128,
+    "linear_hidden_size": 128,
+    "dropout": 0.0031060679304316177,
+    "learning_rate": 0.0008552126475268006
+  },
+  "n_completed_trials": 24,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50
+  }
+}

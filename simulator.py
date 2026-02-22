@@ -11,13 +11,15 @@ import numpy as np
 from neuralforecast import NeuralForecast
 import logging
 import os
+from lib.visualize import visualize_from_folder
 
 SIGNAL_TRIGGER_STOPLOSS = -2
-MODEL_INPUT_LEN = 45
+MODEL_INPUT_LEN = 130 #TODO - load from modelfolder/optuna_summary.json - input_size
 
-def run_simulation(tradeSimParams):
+def run_simulation(tradeSimParams:TradeSimParams):
     trader = Trader()
     portfolio_value = Trader.START_VALUE
+    portfolio_value_at_entry = Trader.START_VALUE
     current_pos = 0
     position_return = 0
     entry_price = None
@@ -28,7 +30,8 @@ def run_simulation(tradeSimParams):
         f_sim_log_file.write("date,pred_momentum,signal,in_market,trade_return,portfolio_value,position_return\n")
 
     # Load pre-trained model
-    nf = NeuralForecast.load(path=tradeSimParams.model_path)
+    print ("Loading model from ", tradeSimParams.model_storage_folder)
+    nf = NeuralForecast.load(path=str(tradeSimParams.model_storage_folder.absolute()))
     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     logging.getLogger("neuralforecast").setLevel(logging.ERROR)
     logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
@@ -73,7 +76,7 @@ def run_simulation(tradeSimParams):
     def get_signal(forecast):
         predictions = [row for _, row in forecast.query(
                     f"unique_id == '{predict_ticker}_price'"
-                ).iloc[0:3].iterrows()]
+                ).iloc[0:tradeSimParams.signal_horizon_steps].iterrows()]
         
         #preds = forecast.query(f"unique_id == '{predict_ticker}_price'").iloc[0,1,2,3] #get predictions for the next days    
         if 'PatchTST' in predictions[0]: #MAE-based prediction
@@ -131,7 +134,10 @@ def run_simulation(tradeSimParams):
         this_position_return = position_return
         day_current_signal   = signal
         day_current_pos      = current_pos
-        portfolio_value *= (1 + this_position_return)
+        # Apply cumulative-from-entry return to the portfolio value *at entry*,
+        # not to the rolling portfolio (which would compound a cumulative return
+        # on top of itself each day).
+        portfolio_value = portfolio_value_at_entry * (1 + this_position_return)
 
         if signal != 0: #keep position until signal inverts, tp or stoploss
             if signal != current_pos:
@@ -140,6 +146,7 @@ def run_simulation(tradeSimParams):
                     signal = 0
                     current_pos = 0
                 portfolio_value *= (1 - FEE)
+                portfolio_value_at_entry = portfolio_value  # keep snapshot current after every close
                 if signal != 0 and i + 1 < len(test_dates):
                     next_day = test_dates[i + 1]
                     entry_price = traded_ticker_open.loc[next_day]
@@ -152,11 +159,11 @@ def run_simulation(tradeSimParams):
         with open(tradeSimParams.sim_log_file, 'a') as f:
             f.write(f"{today.date()},{prediction},{day_current_signal},{day_current_pos},{trade_return},{portfolio_value},{this_position_return}\n")
 
-    # Close last open position
+    # Close last open position — portfolio_value already reflects the last
+    # close price from the final loop iteration; only the exit fee is missing.
     if current_pos != 0 and entry_price is not None:
         last_close = traded_ticker_close.loc[test_dates[-1]]
         final_return = current_pos * (last_close - entry_price) / entry_price
-        portfolio_value *= (1 + final_return)
         portfolio_value *= (1 - FEE)
         print(f"\nFinal close | Return: {final_return:+.4f} | Port: {portfolio_value:.2f}€")
 
@@ -166,21 +173,25 @@ def run_simulation(tradeSimParams):
         'yield': (portfolio_value/START_VALUE-1)*100
         }
     )
-
+    visualize_from_folder(params.logfolder)
     print(f"\n=== Endwert: {portfolio_value:.2f} (Start: 10000€, Rendite: {(portfolio_value/10000-1)*100:+.2f}%) ===")
     
 if __name__ == "__main__":
-    params = TradeSimParams(
-        THRESHOLD=0.0002,
-        STOPLOSS_THRESHOLD= -0.01,
-        TRAILING_STOP_THRESHOLD= 0.3,        
-        FEE= 0.0005,
-        traded_symbol = 'KO',
-        tickers = ['KO', '^SPX'],
-        load_data_from_date="2020-01-01",
-        trading_start="2025-01-01",
-        trading_end="2025-11-01",
-        model_path="./checkpoints/patchtst_momentum_model_multivar_100days_KO_conf_interval/"
-        )
-    
-    run_simulation(params)   
+    for signal_horizon_step in range(1,8):
+        params = TradeSimParams(
+            THRESHOLD=0.0002,
+            STOPLOSS_THRESHOLD= -0.01,
+            TRAILING_STOP_THRESHOLD= 0.3,        
+            FEE= 0.0005,
+            traded_symbol = 'INTC',
+            tickers = ['INTC', '^SPX'],
+            load_data_from_date="2015-01-01",
+            trading_start="2025-01-01",
+            trading_end="2025-12-01",
+            signal_horizon_steps=signal_horizon_step,
+            # model_path auto-generated as checkpoints/KO_2020-01-01_2025-01-01
+            # override here if needed:
+            # model_path="./checkpoints/patchtst_momentum_model_multivar_100days_KO_conf_interval/",
+            )
+        
+        run_simulation(params)   

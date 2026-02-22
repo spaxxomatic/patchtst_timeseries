@@ -1,0 +1,21 @@
+{
+  "THRESHOLD": 0.0002,
+  "STOPLOSS_THRESHOLD": -0.01,
+  "TRAILING_STOP_THRESHOLD": 0.3,
+  "FEE": 0.0005,
+  "tickers": [
+    "INTC",
+    "^SPX"
+  ],
+  "load_data_from_date": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "trading_end": "2025-12-01",
+  "traded_symbol": "INTC",
+  "signal_horizon_steps": 7,
+  "model_path": "checkpoints/INTC_2015-01-01_2025-01-01",
+  "model_storage_folder": "checkpoints/INTC_2015-01-01_2025-01-01/model",
+  "logfolder": "tradesimlog/INTC_20260222_021522",
+  "sim_log_file": "tradesimlog/INTC_20260222_021522/sim_log.csv",
+  "paramsfile": "tradesimlog/INTC_20260222_021522/tradesimparams.json",
+  "sim_stats_results": "tradesimlog/INTC_20260222_021522/simstats.json"
+}

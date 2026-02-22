@@ -1,0 +1,20 @@
+{
+  "THRESHOLD": 0.0002,
+  "STOPLOSS_THRESHOLD": -0.01,
+  "TRAILING_STOP_THRESHOLD": 0.3,
+  "FEE": 0.0005,
+  "tickers": [
+    "KO",
+    "^SPX"
+  ],
+  "load_data_from_date": "2020-01-01",
+  "trading_start": "2024-01-01",
+  "trading_end": "2024-12-01",
+  "traded_symbol": "KO",
+  "signal_horizon_steps": 2,
+  "model_path": "checkpoints/KO_2020-01-01_2024-01-01",
+  "logfolder": "tradesimlog/KO_20260222_005538",
+  "sim_log_file": "tradesimlog/KO_20260222_005538/sim_log.csv",
+  "paramsfile": "tradesimlog/KO_20260222_005538/tradesimparams.json",
+  "sim_stats_results": "tradesimlog/KO_20260222_005538/simstats.json"
+}

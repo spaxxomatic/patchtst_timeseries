@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TradeSimulator — {{ selected_symbol }} Results</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.4rem; margin: 0 0 20px; color: #fff; letter-spacing: 0.02em; }
+
+    /* Symbol selector */
+    .symbol-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .symbol-bar a {
+      padding: 6px 18px;
+      border-radius: 20px;
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+      background: #1e2130;
+      color: #8892b0;
+      border: 1px solid #2a2f45;
+      transition: all 0.15s;
+    }
+    .symbol-bar a:hover { background: #2a3050; color: #cdd5f3; }
+    .symbol-bar a.active {
+      background: #3b5bdb;
+      color: #fff;
+      border-color: #3b5bdb;
+    }
+
+    /* Table wrapper */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #2a2f45;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    thead th {
+      background: #1a1f33;
+      color: #8892b0;
+      text-align: right;
+      padding: 10px 14px;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid #2a2f45;
+      position: relative;
+    }
+    thead th:first-child,
+    thead th:last-child { text-align: left; }
+    thead th:last-child { cursor: default; }
+    thead th:hover { color: #cdd5f3; background: #1e2440; }
+    thead th:last-child:hover { color: #8892b0; background: #1a1f33; }
+    thead th.sort-asc::after  { content: " ↑"; color: #4dabf7; }
+    thead th.sort-desc::after { content: " ↓"; color: #4dabf7; }
+
+    /* group header row */
+    thead tr.group-header th {
+      background: #161926;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #4a5280;
+      padding: 4px 14px;
+      border-bottom: none;
+      cursor: default;
+    }
+
+    tbody tr { border-bottom: 1px solid #1e2130; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #181d2e; }
+
+    td {
+      padding: 8px 14px;
+      text-align: right;
+      white-space: nowrap;
+      color: #c0c8e0;
+    }
+    td:first-child { text-align: left; font-family: monospace; font-size: 0.78rem; color: #8892b0; }
+    td:last-child  { text-align: left; }
+
+    /* Chart button */
+    .btn-chart {
+      background: #1e2440;
+      border: 1px solid #2a3060;
+      color: #7090d0;
+      border-radius: 5px;
+      padding: 3px 10px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-chart:hover {
+      background: #2a3a60;
+      color: #a0c0ff;
+      border-color: #3b5bdb;
+    }
+    .btn-chart.loading { opacity: 0.5; cursor: wait; }
+
+    /* Colour coding */
+    .pos { color: #51cf66; }
+    .neg { color: #ff6b6b; }
+    .neutral { color: #868e96; }
+
+    .no-data {
+      text-align: center;
+      padding: 48px;
+      color: #4a5280;
+      font-size: 0.9rem;
+    }
+
+    /* ── Modal ── */
+    #chart-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #chart-modal.open { display: flex; }
+
+    #chart-modal .modal-box {
+      position: relative;
+      max-width: 92vw;
+      max-height: 90vh;
+      background: #141720;
+      border-radius: 10px;
+      border: 1px solid #2a2f45;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    #chart-modal .modal-title {
+      font-size: 0.82rem;
+      color: #8892b0;
+      font-family: monospace;
+    }
+
+    #chart-modal img {
+      max-width: 100%;
+      max-height: calc(90vh - 70px);
+      border-radius: 6px;
+      display: block;
+    }
+
+    #chart-modal .modal-close {
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      background: none;
+      border: none;
+      color: #8892b0;
+      font-size: 1.3rem;
+      cursor: pointer;
+      line-height: 1;
+    }
+    #chart-modal .modal-close:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+<h1>TradeSimulator Results</h1>
+
+<!-- Symbol selector -->
+<div class="symbol-bar">
+  {% for sym in symbols %}
+    <a href="/?symbol={{ sym }}" class="{{ 'active' if sym == selected_symbol else '' }}">{{ sym }}</a>
+  {% endfor %}
+</div>
+
+<!-- Table -->
+<div class="table-wrap">
+  {% if rows %}
+  <table id="results-table">
+    <thead>
+      <tr class="group-header">
+        <th colspan="4">Run</th>
+        <th colspan="5">Strategy</th>
+        <th colspan="3">Risk</th>
+        <th colspan="4">Trades</th>
+        <th colspan="2">B&amp;H</th>
+        <th colspan="2"></th>
+      </tr>
+      <tr>
+        <th data-col="0" data-type="str">Run folder</th>
+        <th data-col="1" data-type="str">Start</th>
+        <th data-col="2" data-type="str">End</th>
+        <th data-col="3" data-type="num">H</th>
+        <th data-col="4" data-type="num">Return %</th>
+        <th data-col="5" data-type="num">Ann. Ret %</th>
+        <th data-col="6" data-type="num">Ann. Vol %</th>
+        <th data-col="7" data-type="num">Sharpe</th>
+        <th data-col="8" data-type="num">Sortino</th>
+        <th data-col="9" data-type="num">Calmar</th>
+        <th data-col="10" data-type="num">Max DD %</th>
+        <th data-col="11" data-type="num">Trades</th>
+        <th data-col="12" data-type="num">Win %</th>
+        <th data-col="13" data-type="num">Avg Win %</th>
+        <th data-col="14" data-type="num">Avg Loss %</th>
+        <th data-col="15" data-type="num">B&amp;H Ret %</th>
+        <th data-col="16" data-type="num">B&amp;H Sharpe</th>
+        <th>Sim</th>
+        <th>CV</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.run }}</td>
+        <td>{{ r.trading_start }}</td>
+        <td>{{ r.trading_end }}</td>
+        <td>{{ r.horizon_steps }}</td>
+        <td class="{{ 'pos' if r.return_pct and r.return_pct > 0 else 'neg' }}">
+          {{ "%.2f"|format(r.return_pct) if r.return_pct is not none else "—" }}
+        </td>
+        <td class="{{ 'pos' if r.ann_return_pct and r.ann_return_pct > 0 else 'neg' }}">
+          {{ "%.2f"|format(r.ann_return_pct) if r.ann_return_pct is not none else "—" }}
+        </td>
+        <td>{{ "%.2f"|format(r.ann_vol_pct) if r.ann_vol_pct is not none else "—" }}</td>
+        <td class="{{ 'pos' if r.sharpe and r.sharpe > 1 else 'neutral' }}">
+          {{ "%.3f"|format(r.sharpe) if r.sharpe is not none else "—" }}
+        </td>
+        <td class="{{ 'pos' if r.sortino and r.sortino > 1 else 'neutral' }}">
+          {{ "%.3f"|format(r.sortino) if r.sortino is not none else "—" }}
+        </td>
+        <td class="{{ 'pos' if r.calmar and r.calmar > 1 else 'neutral' }}">
+          {{ "%.3f"|format(r.calmar) if r.calmar is not none else "—" }}
+        </td>
+        <td class="{{ 'neg' if r.max_drawdown_pct and r.max_drawdown_pct < -10 else 'neutral' }}">
+          {{ "%.2f"|format(r.max_drawdown_pct) if r.max_drawdown_pct is not none else "—" }}
+        </td>
+        <td>{{ r.n_trades if r.n_trades is not none else "—" }}</td>
+        <td class="{{ 'pos' if r.win_pct and r.win_pct > 50 else 'neg' }}">
+          {{ "%.1f"|format(r.win_pct) if r.win_pct is not none else "—" }}
+        </td>
+        <td class="pos">{{ "%.2f"|format(r.avg_win_pct) if r.avg_win_pct is not none else "—" }}</td>
+        <td class="neg">{{ "%.2f"|format(r.avg_loss_pct) if r.avg_loss_pct is not none else "—" }}</td>
+        <td class="{{ 'pos' if r.bh_return_pct and r.bh_return_pct > 0 else 'neg' }}">
+          {{ "%.2f"|format(r.bh_return_pct) if r.bh_return_pct is not none else "—" }}
+        </td>
+        <td>{{ "%.3f"|format(r.bh_sharpe) if r.bh_sharpe is not none else "—" }}</td>
+        <td><button class="btn-chart" data-url="/image/{{ r.run }}" data-label="{{ r.run }}">&#128202;</button></td>
+        <td>
+          {% if r.has_cv_chart %}
+          <button class="btn-chart" data-url="/cv-image/{{ r.run }}" data-label="{{ r.run }} — CV backtest">&#128200;</button>
+          {% else %}
+          <span class="neutral" style="font-size:0.75rem">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="no-data">No results found for <strong>{{ selected_symbol }}</strong>.</p>
+  {% endif %}
+</div>
+
+<!-- Chart modal -->
+<div id="chart-modal">
+  <div class="modal-box">
+    <button class="modal-close" id="modal-close-btn">&times;</button>
+    <div class="modal-title" id="modal-title"></div>
+    <img id="modal-img" src="" alt="Simulation chart">
+  </div>
+</div>
+
+<script>
+  (function () {
+    // ── Sortable table ────────────────────────────────────────────────────────
+    const table = document.getElementById("results-table");
+    if (table) {
+      let sortCol = null;
+      let sortAsc = true;
+      const headers = table.querySelectorAll("thead tr:last-child th[data-col]");
+
+      headers.forEach((th) => {
+        th.addEventListener("click", () => {
+          const col  = parseInt(th.dataset.col);
+          const type = th.dataset.type;
+
+          sortAsc = (sortCol === col) ? !sortAsc : true;
+          sortCol = col;
+
+          headers.forEach((h) => h.classList.remove("sort-asc", "sort-desc"));
+          th.classList.add(sortAsc ? "sort-asc" : "sort-desc");
+
+          const tbody = table.tBodies[0];
+          const rows  = Array.from(tbody.rows);
+
+          rows.sort((a, b) => {
+            const aText = a.cells[col].textContent.trim();
+            const bText = b.cells[col].textContent.trim();
+            let aVal, bVal;
+            if (type === "num") {
+              aVal = aText === "—" ? (sortAsc ? Infinity : -Infinity) : parseFloat(aText);
+              bVal = bText === "—" ? (sortAsc ? Infinity : -Infinity) : parseFloat(bText);
+            } else {
+              aVal = aText.toLowerCase();
+              bVal = bText.toLowerCase();
+            }
+            if (aVal < bVal) return sortAsc ? -1 : 1;
+            if (aVal > bVal) return sortAsc ? 1  : -1;
+            return 0;
+          });
+          rows.forEach((r) => tbody.appendChild(r));
+        });
+      });
+    }
+
+    // ── Chart modal ───────────────────────────────────────────────────────────
+    const modal      = document.getElementById("chart-modal");
+    const modalImg   = document.getElementById("modal-img");
+    const modalTitle = document.getElementById("modal-title");
+    const closeBtn   = document.getElementById("modal-close-btn");
+
+    function openChart(url, label, btn) {
+      modalTitle.textContent = label;
+      modalImg.src = "";
+      modal.classList.add("open");
+      if (btn) btn.classList.add("loading");
+
+      const tmp = new Image();
+      tmp.onload = () => {
+        modalImg.src = url;
+        if (btn) btn.classList.remove("loading");
+      };
+      tmp.onerror = () => {
+        modalTitle.textContent = label + "  —  (no chart available)";
+        if (btn) btn.classList.remove("loading");
+      };
+      tmp.src = url;
+    }
+
+    function closeModal() {
+      modal.classList.remove("open");
+      modalImg.src = "";
+    }
+
+    // Button clicks — each button carries its own url and label
+    document.querySelectorAll(".btn-chart").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        openChart(btn.dataset.url, btn.dataset.label, btn)
+      );
+    });
+
+    // Close on X button or backdrop click
+    closeBtn.addEventListener("click", closeModal);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+
+    // Close on Escape
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
+  })();
+</script>
+
+</body>
+</html>

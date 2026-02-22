@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 import pandas as pd
 from ticker_data import get_df_for_period, get_ticker
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field, asdict, fields as dc_fields
     
 class Period(dict):
     pass
@@ -22,14 +22,27 @@ class TradeSimParams:
     load_data_from_date:str
     trading_start:str
     trading_end:str
-    model_path:str
     traded_symbol:str
+    signal_horizon_steps:int = 3
+    model_path:str = None  # auto-generated in __post_init__ if not provided
+    model_storage_folder:Path = field(init=False)
     logfolder:Path = field(init=False)
     sim_log_file:Path = field(init=False)
     paramsfile:Path = field(init=False)
     sim_stats_results:Path = field(init=False)
     
     def __post_init__(self) -> None:
+        if self.model_path is None:
+            symbol_clean = self.traded_symbol.replace('^', '')
+            self.model_path = str(
+                Path("checkpoints") / f"{symbol_clean}_{self.load_data_from_date}_{self.trading_start}"
+            )
+        self.model_storage_folder = Path(self.model_path) / "model"            
+        dataset_path = self.model_storage_folder / "dataset.pkl"
+        if not dataset_path.is_file():
+            raise FileNotFoundError(
+                f"Model path {self.model_storage_folder!s} is invalid, file not found: {dataset_path!s}\n"
+            )        
         self.logfolder = Path("tradesimlog") / datetime.now().strftime(f"{self.traded_symbol}_%Y%m%d_%H%M%S")
         self.logfolder.mkdir(parents=True, exist_ok=True)
         self.sim_log_file = self.logfolder / "sim_log.csv"
@@ -39,13 +52,35 @@ class TradeSimParams:
     
     @classmethod
     def load_from_folder(cls, logfolder):
-        paramsfile = Path(logfolder) / PARAMS_DUMPFILE
-        raw_dict = json.loads(paramsfile.read_text())
-        # Drop fields computed in __post_init__ — they are not __init__ params
-        for computed in ('logfolder', 'sim_log_file', 'paramsfile', 'sim_stats_results'):
-            raw_dict.pop(computed, None)
-        return cls(**raw_dict)
-    
+        """Restore a TradeSimParams from a previous run folder.
+
+        Uses object.__new__ to bypass __post_init__ so no new timestamped
+        folder is created and the original paths are preserved.
+        """
+        logfolder = Path(logfolder)
+        raw_dict = json.loads((logfolder / PARAMS_DUMPFILE).read_text())
+
+        instance = object.__new__(cls)
+        for f in dc_fields(cls):
+            if f.init and f.name in raw_dict:
+                object.__setattr__(instance, f.name, raw_dict[f.name])
+
+        # Restore computed paths pointing at the original folder
+        object.__setattr__(instance, 'logfolder',       logfolder)
+        object.__setattr__(instance, 'sim_log_file',    logfolder / 'sim_log.csv')
+        object.__setattr__(instance, 'paramsfile',      logfolder / PARAMS_DUMPFILE)
+        object.__setattr__(instance, 'sim_stats_results', logfolder / 'simstats.json')
+        return instance
+
+    def store_chart_results(self, fig) -> Path:
+        """Save a matplotlib figure to result.png inside the run folder."""
+        import matplotlib.pyplot as plt
+        out = self.logfolder / 'result.png'
+        fig.savefig(out, dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        print(f"Chart saved to {out}")
+        return out
+
     def log_sim_results(self, result):
         Path(self.sim_stats_results).write_text(json.dumps(result, indent=4))
 

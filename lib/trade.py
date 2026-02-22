@@ -20,4 +20,4 @@ class Trade:
 
 @dataclass
 class TradeSimul:
-        
+    pass        
