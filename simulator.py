@@ -301,8 +301,8 @@ if __name__ == "__main__":
             traded_symbol = traded_symbol,
             tickers = [traded_symbol, '^SPX', '^VIX'],
             load_data_from_date="2015-01-01",
-            trading_start="2025-01-01",
-            trading_end="2025-04-01",
+            trading_start="2025-08-01",
+            trading_end="2026-01-01",
             signal_horizon_steps=signal_horizon_step,
             # model_path auto-generated as checkpoints/KO_2020-01-01_2025-01-01
             # override here if needed:
