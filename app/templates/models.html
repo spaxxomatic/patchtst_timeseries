@@ -97,7 +97,7 @@
     td:first-child { text-align: left; font-family: monospace; font-size: 0.78rem; color: #8892b0; }
 
     /* Chart / action buttons */
-    .btn-chart, .btn-surface, .btn-delete {
+    .btn-chart, .btn-surface, .btn-pred, .btn-delete {
       background: #1e2440;
       border: 1px solid #2a3060;
       color: #7090d0;
@@ -107,7 +107,7 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .btn-chart:hover, .btn-surface:hover {
+    .btn-chart:hover, .btn-surface:hover, .btn-pred:hover {
       background: #2a3a60;
       color: #a0c0ff;
       border-color: #3b5bdb;
@@ -117,6 +117,11 @@
     .btn-surface {
       border-color: #2a4060;
       color: #60a0d0;
+    }
+
+    .btn-pred {
+      border-color: #2a3a50;
+      color: #70b090;
     }
 
     .btn-delete {
@@ -213,7 +218,7 @@
         <th colspan="4">Model</th>
         <th colspan="1">Result</th>
         <th colspan="7">Best Params</th>
-        <th colspan="3">Charts</th>
+        <th colspan="4">Charts</th>
         <th colspan="1">Actions</th>
       </tr>
       <tr>
@@ -232,6 +237,7 @@
         <th>CV</th>
         <th>Train</th>
         <th title="Inspect threshold surface">Surface</th>
+        <th title="Directional prediction accuracy surface">Pred</th>
         <th style="cursor:default">Del</th>
       </tr>
     </thead>
@@ -270,6 +276,11 @@
           <button class="btn-surface"
                   title="Inspect threshold surface"
                   onclick="window.open('/surface/{{ r.folder }}','_blank')">&#127774;</button>
+        </td>
+        <td>
+          <button class="btn-pred"
+                  title="Directional prediction accuracy surface"
+                  onclick="window.open('/pred-surface/{{ r.folder }}','_blank')">&#127919;</button>
         </td>
         <td>
           <button class="btn-delete"

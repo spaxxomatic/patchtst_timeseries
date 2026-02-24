@@ -13,3 +13,6 @@ data_cache/
 tradesimlog/
 bulktrain.log
 *.parquet
+surface_cache/
+/checkpoints/*/pred_surface/
+/checkpoints/*/surface_study/

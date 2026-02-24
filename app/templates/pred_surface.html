@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prediction Accuracy — {{ model_folder }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.3rem; margin: 0 0 4px; color: #fff; }
+    .subtitle { font-size: 0.78rem; color: #4a5280; font-family: monospace; margin-bottom: 20px; }
+
+    .nav { margin-bottom: 20px; }
+    .nav a {
+      padding: 5px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #1e2130;
+      color: #8892b0;
+      border: 1px solid #2a2f45;
+    }
+    .nav a:hover { background: #2a3050; color: #cdd5f3; }
+
+    /* ── Status / spinner ───────────────────────────────────────────────── */
+    #status-panel {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #141720;
+      border: 1px solid #2a2f45;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid #2a3060;
+      border-top-color: #4d7bdb;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #status-text { font-size: 0.9rem; color: #8892b0; }
+    #status-text strong { color: #cdd5f3; }
+
+    .btn-start {
+      padding: 8px 20px;
+      background: #2a3a60;
+      border: 1px solid #3b5bdb;
+      color: #a0c0ff;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-left: 16px;
+    }
+    .btn-start:hover { background: #3b5bdb; color: #fff; }
+    .btn-start:disabled { opacity: 0.5; cursor: default; }
+
+    /* ── Results layout ─────────────────────────────────────────────────── */
+    #results { display: none; }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    /* Stats sidebar */
+    .stats-panel {
+      background: #141720;
+      border: 1px solid #2a2f45;
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .stats-section h3 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4a5280;
+      margin: 0 0 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+    }
+    .stat-label { color: #8892b0; }
+    .stat-value { color: #cdd5f3; font-family: monospace; font-weight: 600; }
+    .stat-value.pos  { color: #51cf66; }
+    .stat-value.neg  { color: #ff6b6b; }
+    .stat-value.warn { color: #fcc419; }
+
+    /* Stability badge */
+    .signal-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .signal-stable   { background: #1a3a1a; color: #51cf66; border: 1px solid #2a5a2a; }
+    .signal-moderate { background: #3a3010; color: #fcc419; border: 1px solid #5a4a10; }
+    .signal-noisy    { background: #3a1010; color: #ff6b6b; border: 1px solid #5a2020; }
+
+    /* 3-column bar for signal coverage */
+    .frac-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .frac-bar-row { font-size: 0.78rem; }
+    .frac-bar-label { color: #8892b0; display: flex; justify-content: space-between; margin-bottom: 2px; }
+    .frac-bar-track {
+      height: 6px;
+      border-radius: 3px;
+      background: #1e2440;
+    }
+    .frac-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      background: #3b5bdb;
+      transition: width 0.4s ease;
+    }
+
+    /* Right panel — heatmaps */
+    .chart-main img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2a2f45;
+      display: block;
+    }
+
+    /* Full-width charts below */
+    .chart-row {
+      margin-bottom: 16px;
+    }
+    .chart-row img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2a2f45;
+      display: block;
+    }
+    .chart-label {
+      font-size: 0.75rem;
+      color: #4a5280;
+      margin-bottom: 6px;
+      font-family: monospace;
+    }
+
+    /* Best params grid */
+    .best-params-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .error-box {
+      background: #2a1010;
+      border: 1px solid #5a2020;
+      border-radius: 8px;
+      padding: 16px 20px;
+      color: #ff8080;
+      font-family: monospace;
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+    }
+
+    /* Two-column chart layout */
+    .chart-pair {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .info-note {
+      font-size: 0.72rem;
+      color: #4a5280;
+      line-height: 1.5;
+      margin-top: 8px;
+      border-top: 1px solid #1e2130;
+      padding-top: 8px;
+    }
+    .btn-replot {
+      padding: 6px 16px;
+      background: #1a2a3a;
+      border: 1px solid #2a4060;
+      color: #70a0c0;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      margin-top: 4px;
+    }
+    .btn-replot:hover { background: #2a3a50; color: #a0d0f0; }
+    .btn-replot:disabled { opacity: 0.5; cursor: wait; }
+  </style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="/models">← Models</a>
+</div>
+
+<h1>&#127919; Prediction Accuracy Surface — {{ model_folder }}</h1>
+<p class="subtitle">Directional accuracy over: model_input_len &times; test_period_days &times; threshold</p>
+
+<!-- Status panel -->
+<div id="status-panel">
+  <div class="spinner" id="spinner" style="display:none"></div>
+  <div id="status-text"><strong>Checking…</strong></div>
+  <button class="btn-start" id="start-btn" style="display:none" onclick="startStudy()">
+    &#9654; Start accuracy study
+  </button>
+</div>
+
+<!-- Results -->
+<div id="results">
+
+  <div class="results-grid">
+    <!-- Stats sidebar -->
+    <div class="stats-panel">
+
+      <div class="stats-section">
+        <h3>Study overview</h3>
+        <div class="stat-row">
+          <span class="stat-label">Trials</span>
+          <span class="stat-value" id="s-trials">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Accuracy range</span>
+          <span class="stat-value" id="s-range">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Accuracy mean ± std</span>
+          <span class="stat-value" id="s-mean-std">—</span>
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <h3>Signal quality</h3>
+        <div id="signal-badge"></div>
+        <div class="info-note">
+          Stable: mean&nbsp;&ge;&nbsp;52.5%&nbsp;&amp;&nbsp;std&nbsp;&lt;&nbsp;2.5%<br>
+          Moderate: mean&nbsp;&ge;&nbsp;50.5%&nbsp;&amp;&nbsp;std&nbsp;&lt;&nbsp;4%<br>
+          Noisy: inconsistent across parameter space
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <h3>Trials above chance</h3>
+        <div class="frac-bars" id="frac-bars">
+          <div class="frac-bar-row">
+            <div class="frac-bar-label">
+              <span>&gt; 50%</span><span id="f50">—</span>
+            </div>
+            <div class="frac-bar-track"><div class="frac-bar-fill" id="fb50" style="width:0%"></div></div>
+          </div>
+          <div class="frac-bar-row">
+            <div class="frac-bar-label">
+              <span>&gt; 52%</span><span id="f52">—</span>
+            </div>
+            <div class="frac-bar-track"><div class="frac-bar-fill" id="fb52" style="width:0%"></div></div>
+          </div>
+          <div class="frac-bar-row">
+            <div class="frac-bar-label">
+              <span>&gt; 55%</span><span id="f55">—</span>
+            </div>
+            <div class="frac-bar-track">
+              <div class="frac-bar-fill" id="fb55" style="width:0%; background:#51cf66"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <h3>Best params found</h3>
+        <div class="best-params-grid">
+          <div class="stat-row">
+            <span class="stat-label">Input window</span>
+            <span class="stat-value" id="b-inputlen">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Test period days</span>
+            <span class="stat-value" id="b-period">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Threshold</span>
+            <span class="stat-value" id="b-threshold">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Signals used</span>
+            <span class="stat-value" id="b-nsignals">—</span>
+          </div>
+          <div class="stat-row" style="border-top:1px solid #2a2f45; padding-top:8px; margin-top:4px">
+            <span class="stat-label">Dir accuracy</span>
+            <span class="stat-value" id="b-acc">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <h3>Actions</h3>
+        <button class="btn-replot" id="replot-btn" onclick="replotCharts()">
+          &#8635; Replot charts
+        </button>
+        <div style="font-size:0.70rem;color:#4a5280;margin-top:6px;line-height:1.5">
+          Regenerates all plots from the existing results without re-running inference or Optuna.
+          Use after a code update.
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Heatmaps (right of sidebar) -->
+    <div class="chart-main" id="chart-heatmaps" style="display:none">
+      <div class="chart-label">Pairwise marginal heatmaps — accuracy averaged over 3rd axis</div>
+      <img id="img-heatmaps" src="" alt="Heatmaps">
+    </div>
+  </div>
+
+  <!-- Line plots -->
+  <div class="chart-row" id="chart-lines" style="display:none">
+    <div class="chart-label">Sensitivity curves — accuracy vs threshold &amp; vs test-period length</div>
+    <img id="img-lines" src="" alt="Line plots">
+  </div>
+
+  <!-- Hist + Coverage side by side -->
+  <div class="chart-pair">
+    <div class="chart-row" id="chart-hist" style="display:none">
+      <div class="chart-label">Distribution of directional accuracy across parameter space</div>
+      <img id="img-hist" src="" alt="Histogram">
+    </div>
+    <div class="chart-row" id="chart-coverage" style="display:none">
+      <div class="chart-label">Accuracy &amp; signal count vs threshold (trained window, full period)</div>
+      <img id="img-coverage" src="" alt="Coverage">
+    </div>
+  </div>
+
+</div><!-- /results -->
+
+<script>
+(function () {
+  const MODEL_FOLDER  = {{ model_folder | tojson }};
+  const STATUS_URL    = `/pred-surface-status/${MODEL_FOLDER}`;
+  const RUN_URL       = `/pred-surface-run/${MODEL_FOLDER}`;
+  const IMG_BASE      = `/pred-surface-image/${MODEL_FOLDER}?name=`;
+
+  const statusPanel   = document.getElementById("status-panel");
+  const statusText    = document.getElementById("status-text");
+  const spinner       = document.getElementById("spinner");
+  const startBtn      = document.getElementById("start-btn");
+  const resultsEl     = document.getElementById("results");
+
+  let pollTimer = null;
+
+  function setStatus(html, showSpinner, showStart) {
+    statusText.innerHTML  = html;
+    spinner.style.display = showSpinner ? "block" : "none";
+    startBtn.style.display = showStart  ? "inline-block" : "none";
+  }
+
+  function startPolling() {
+    if (!pollTimer) pollTimer = setInterval(poll, 6000);
+  }
+
+  function showResults(summary, images) {
+    statusPanel.style.display = "none";
+    resultsEl.style.display   = "block";
+
+    // Overview
+    document.getElementById("s-trials").textContent = summary.n_trials ?? "—";
+
+    const mn  = summary.dir_acc_min?.toFixed(3);
+    const mx  = summary.dir_acc_max?.toFixed(3);
+    document.getElementById("s-range").textContent =
+      (mn != null && mx != null) ? `${mn} … ${mx}` : "—";
+
+    const mean = summary.dir_acc_mean;
+    const std  = summary.dir_acc_std;
+    const meanEl = document.getElementById("s-mean-std");
+    meanEl.textContent = (mean != null) ? `${mean.toFixed(3)} ± ${std?.toFixed(3)}` : "—";
+    meanEl.className   = "stat-value " + (mean > 0.52 ? "pos" : mean >= 0.50 ? "warn" : "neg");
+
+    // Signal quality badge
+    const badge = document.getElementById("signal-badge");
+    if (mean != null && std != null) {
+      let cls, label;
+      if (mean >= 0.525 && std <= 0.025)      { cls = "signal-stable";   label = "Stable signal"; }
+      else if (mean >= 0.505 && std <= 0.040) { cls = "signal-moderate"; label = "Moderate signal"; }
+      else                                     { cls = "signal-noisy";   label = "Noisy / no edge"; }
+      badge.innerHTML = `<span class="signal-badge ${cls}">${label}</span>`;
+    }
+
+    // Fraction bars
+    const f50 = summary.frac_above_50pct ?? 0;
+    const f52 = summary.frac_above_52pct ?? 0;
+    const f55 = summary.frac_above_55pct ?? 0;
+    document.getElementById("f50").textContent = f50.toFixed(1) + "%";
+    document.getElementById("f52").textContent = f52.toFixed(1) + "%";
+    document.getElementById("f55").textContent = f55.toFixed(1) + "%";
+    document.getElementById("fb50").style.width = f50 + "%";
+    document.getElementById("fb52").style.width = f52 + "%";
+    document.getElementById("fb55").style.width = f55 + "%";
+
+    // Best params
+    const bp = summary.best_params ?? {};
+    document.getElementById("b-inputlen").textContent   = bp.model_input_len ?? "—";
+    document.getElementById("b-period").textContent     = bp.test_period_days != null
+      ? bp.test_period_days + " days" : "—";
+    document.getElementById("b-threshold").textContent  = bp.threshold != null
+      ? bp.threshold.toFixed(5) : "—";
+    document.getElementById("b-nsignals").textContent   = bp.n_signals ?? "—";
+    const accEl = document.getElementById("b-acc");
+    accEl.textContent = bp.dir_acc != null ? (bp.dir_acc * 100).toFixed(2) + "%" : "—";
+    accEl.className   = "stat-value " + (bp.dir_acc > 0.52 ? "pos" : bp.dir_acc >= 0.50 ? "warn" : "neg");
+
+    // Images
+    const showImg = (key, imgId, containerId) => {
+      if (images[key]) {
+        document.getElementById(imgId).src = IMG_BASE + key;
+        document.getElementById(containerId).style.display = "block";
+      }
+    };
+    showImg("heatmaps", "img-heatmaps", "chart-heatmaps");
+    showImg("lines",    "img-lines",    "chart-lines");
+    showImg("hist",     "img-hist",     "chart-hist");
+    showImg("coverage", "img-coverage", "chart-coverage");
+  }
+
+  function showError(msg) {
+    statusPanel.innerHTML = `<div class="error-box"><strong>Error:</strong>\n${msg}</div>`;
+  }
+
+  window.startStudy = async function () {
+    startBtn.disabled = true;
+    setStatus("<strong>Starting…</strong>", true, false);
+    try {
+      const resp = await fetch(RUN_URL, { method: "POST" });
+      const data = await resp.json();
+      if (resp.ok && data.status !== "already_running") {
+        setStatus(
+          "<strong>Running…</strong>&ensp;Building predictions cache then running Optuna study — this may take 10–20 minutes.",
+          true, false
+        );
+        startPolling();
+      } else if (data.status === "already_running") {
+        setStatus("<strong>Running…</strong>&ensp;Study already in progress…", true, false);
+        startPolling();
+      } else {
+        setStatus(`<span style="color:#ff6b6b">Failed: ${data.detail ?? resp.statusText}</span>`, false, true);
+        startBtn.disabled = false;
+      }
+    } catch (e) {
+      setStatus(`<span style="color:#ff6b6b">Network error: ${e}</span>`, false, true);
+      startBtn.disabled = false;
+    }
+  };
+
+  async function poll() {
+    try {
+      const resp = await fetch(STATUS_URL);
+      const data = await resp.json();
+
+      if (data.status === "done") {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        showResults(data.summary, data.images ?? {});
+      } else if (data.status === "running") {
+        setStatus(
+          "<strong>Running…</strong>&ensp;Building predictions cache and Optuna study — this may take 10–20 minutes.",
+          true, false
+        );
+        startPolling();
+      } else if (data.status === "error") {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        showError(data.message ?? "Unknown error");
+      } else {
+        // pending — show start button
+        clearInterval(pollTimer);
+        pollTimer = null;
+        setStatus(
+          "<strong>Not yet run.</strong>&ensp;Click to start the directional accuracy study.<br>" +
+          "<span style='font-size:0.76rem;color:#4a5280'>Note: the first run builds a multi-window predictions cache " +
+          "which requires model inference (~10–20 min depending on test period length).</span>",
+          false, true
+        );
+      }
+    } catch (e) {
+      setStatus(`<span style="color:#ff6b6b">Network error: ${e}</span>`, false, false);
+    }
+  }
+
+  // Kick off on page load
+  poll();
+})();
+
+window.replotCharts = async function () {
+  const btn = document.getElementById("replot-btn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Reploting…";
+  const MODEL_FOLDER = {{ model_folder | tojson }};
+  try {
+    const resp = await fetch(`/pred-surface-replot/${MODEL_FOLDER}`, { method: "POST" });
+    const data = await resp.json();
+    if (!resp.ok) {
+      alert("Error: " + (data.detail ?? resp.statusText));
+      btn.disabled = false;
+      btn.textContent = "↺ Replot charts";
+      return;
+    }
+    btn.textContent = "⏳ Running…";
+    // Poll until lock file disappears (status switches away from running)
+    const check = setInterval(async () => {
+      const s = await fetch(`/pred-surface-status/${MODEL_FOLDER}`);
+      const sd = await s.json();
+      if (sd.status !== "running") {
+        clearInterval(check);
+        btn.disabled = false;
+        btn.textContent = "↺ Replot charts";
+        // Bust image cache and reload
+        const ts = "?t=" + Date.now();
+        ["heatmaps","lines","hist","coverage"].forEach(name => {
+          const img = document.getElementById("img-" + name);
+          if (img && img.src) img.src = img.src.split("?")[0] + ts;
+        });
+      }
+    }, 2000);
+  } catch (e) {
+    alert("Request failed: " + e);
+    btn.disabled = false;
+    btn.textContent = "↺ Replot charts";
+  }
+};
+</script>
+
+</body>
+</html>

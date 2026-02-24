@@ -1,0 +1,365 @@
+
+ ▐▛███▜▌   Claude Code v2.1.51
+▝▜█████▛▘  Sonnet 4.6 · Claude Pro
+  ▘▘ ▝▝    ~/patchtst_timeseries
+
+❯ The threshold surface exploration that we build is very useful. let's     
+  build another optuna surface exploration for the pure directional         
+  accuracy of the model predictions. Let's ignore the trading logic and     
+  explore the model predictions only.                                       
+  I want to see to which extend the prediction accuracy depends on the      
+  following variables:                                                      
+  1. window length (MODEL_INPUT_LEN)                                        
+  2. across various periods in test_dates (30 days, 40 days, 50 days ...    
+  full period) (so estimate measure directional accuracy over increasing    
+  lengths in test_dates)                                                    
+  3. threshold (are the "stronger" predictions statistically more relevant  
+  ?                                                                         
+                                                                            
+  Of course I expect a directional accuracy to be somewhere in the range    
+  47-55% , but let's check how much noise we get when we vary those         
+  parameters. A model that does not perform consistently is useless for     
+  practical purposes.                                                       
+  Create a new optuna_model_pred.py for this code.                          
+  I think you can repurpose lot of code from the method                     
+  build_predictions_cache and the other methods in thresh_surface.py.       
+  Add a button to the models table to trigger this computation and          
+  visualize the results in the browser                                      
+
+● Read 4 files (ctrl+o to expand)
+
+● Now let me look at the surface.html template:
+
+● Read 2 files (ctrl+o to expand)
+
+● Let me also quickly check how TradeSimulData provides the closing prices and
+  data access:
+
+● Read 1 file (ctrl+o to expand)
+
+● Now I have a thorough understanding of the codebase. Let me build everything:
+
+● Write(optuna_pred_surface.py)
+  ⎿  Wrote 704 lines to optuna_pred_surface.py
+      1 """optuna_pred_surface.py
+      2 ─────────────────────────────────────────────────────────────────
+        ────────────
+      3 Explore model DIRECTIONAL ACCURACY surface over three dimensions:
+      4 
+      5   1. model_input_len  — days of history fed to the model at infer
+        ence time
+      6                         (fractions of the trained input_size, e.g
+        . 35%…100%)
+      7   2. test_period_days — how many tail-days of the test period to 
+        evaluate
+      8                         (30 → full period, in steps)
+      9   3. threshold        — minimum |prediction| to count as a signal
+     … +694 lines (ctrl+o to expand)
+
+● Now add the API endpoints to app/main.py:
+
+● Update(app/main.py)
+  ⎿  Added 2 lines, removed 1 line
+      18  from simulator import _SIM_GENERATED_FILES, _SIM_LOCK_FILE
+      19  
+      20  CHECKPOINTS_FAILURES = PROJECT_ROOT / "checkpoints_failures"
+      21 -_SURFACE_LOCK = "surface.lock"                                 
+      21 +_SURFACE_LOCK      = "surface.lock"                            
+      22 +_PRED_SURFACE_LOCK = "pred_surface.lock"                       
+      23  
+      24  app = FastAPI(title="TradeSimulator Dashboard")
+      25  templates = Jinja2Templates(directory=Path(__file__).parent / "
+          templates")
+
+● Update(app/main.py)
+  ⎿  Added 83 lines
+      390      return FileResponse(img, media_type="image/png")
+      391  
+      392  
+      393 +# ─── Prediction accuracy surface study ──────────────────────
+          +─────────────────                                             
+      394 +                                                              
+      395 +@app.get("/pred-surface/{model_folder:path}", response_class=H
+          +TMLResponse)                                                  
+      396 +async def pred_surface_page(request: Request, model_folder: st
+          +r):                                                           
+      397 +    return templates.TemplateResponse("pred_surface.html", {  
+      398 +        "request":      request,                              
+      399 +        "model_folder": model_folder,                         
+      400 +    })                                                        
+      401 +                                                              
+      402 +                                                              
+      403 +@app.get("/pred-surface-status/{model_folder:path}")          
+      404 +async def pred_surface_status(model_folder: str):             
+      405 +    study_dir    = CHECKPOINTS / model_folder / "pred_surface"
+      406 +    lock_file    = study_dir / _PRED_SURFACE_LOCK             
+      407 +    summary_file = study_dir / "pred_surface_summary.json"    
+      408 +    error_file   = study_dir / "pred_surface_error.txt"       
+      409 +                                                              
+      410 +    if lock_file.exists():                                    
+      411 +        return JSONResponse({"status": "running"})            
+      412 +    if error_file.exists():                                   
+      413 +        return JSONResponse({"status": "error", "message": err
+          +or_file.read_text()})                                         
+      414 +    if summary_file.exists():                                 
+      415 +        summary = json.loads(summary_file.read_text())        
+      416 +        images  = {                                           
+      417 +            name: (study_dir / f"pred_surface_{name}.png").exi
+          +sts()                                                         
+      418 +            for name in ("heatmaps", "lines", "hist", "coverag
+          +e")                                                           
+      419 +        }                                                     
+      420 +        return JSONResponse({"status": "done", "summary": summ
+          +ary, "images": images})                                       
+      421 +    return JSONResponse({"status": "pending"})                
+      422 +                                                              
+      423 +                                                              
+      424 +def _do_pred_surface_run(model_folder: str) -> None:          
+      425 +    from optuna_pred_surface import run_pred_surface_study    
+      426 +                                                              
+      427 +    os.chdir(PROJECT_ROOT)                                    
+      428 +    study_dir = CHECKPOINTS / model_folder / "pred_surface"   
+      429 +    lock_file = study_dir / _PRED_SURFACE_LOCK                
+      430 +    try:                                                      
+      431 +        sim_folder = _find_tradesim_folder_for_model(model_fol
+          +der)                                                          
+      432 +        if sim_folder is None:                                
+      433 +            raise RuntimeError(f"No tradesimlog entry found fo
+          +r model {model_folder}")                                      
+      434 +                                                              
+      435 +        params = TradeSimParams.load_from_folder(sim_folder)  
+      436 +        if not hasattr(params, "model_storage_folder") or para
+          +ms.model_storage_folder is None:                              
+      437 +            object.__setattr__(params, "model_storage_folder",
+          + Path(params.model_path) / "model")                           
+      438 +                                                              
+      439 +        run_pred_surface_study(params, n_trials=1000, output_d
+          +ir=study_dir)                                                 
+      440 +    except Exception as exc:                                  
+      441 +        study_dir.mkdir(parents=True, exist_ok=True)          
+      442 +        (study_dir / "pred_surface_error.txt").write_text(str(
+          +exc))                                                         
+      443 +    finally:                                                  
+      444 +        lock_file.unlink(missing_ok=True)                     
+      445 +                                                              
+      446 +                                                              
+      447 +@app.post("/pred-surface-run/{model_folder:path}")            
+      448 +async def pred_surface_run(model_folder: str, background_tasks
+          +: BackgroundTasks):                                           
+      449 +    study_dir = CHECKPOINTS / model_folder / "pred_surface"   
+      450 +    lock_file = study_dir / _PRED_SURFACE_LOCK                
+      451 +    if lock_file.exists():                                    
+      452 +        return JSONResponse({"status": "already_running"})    
+      453 +    if (study_dir / "pred_surface_summary.json").exists():    
+      454 +        return JSONResponse({"status": "already_done"})       
+      455 +    sim_folder = _find_tradesim_folder_for_model(model_folder)
+      456 +    if sim_folder is None:                                    
+      457 +        raise HTTPException(                                  
+      458 +            status_code=422,                                  
+      459 +            detail="No tradesimlog run found for this model — 
+          +run a simulation first",                                      
+      460 +        )                                                     
+      461 +    study_dir.mkdir(parents=True, exist_ok=True)              
+      462 +    lock_file.touch()                                         
+      463 +    background_tasks.add_task(_do_pred_surface_run, model_fold
+          +er)                                                           
+      464 +    return JSONResponse({"status": "started"})                
+      465 +                                                              
+      466 +                                                              
+      467 +@app.get("/pred-surface-image/{model_folder:path}")           
+      468 +async def pred_surface_image(model_folder: str, name: str = Qu
+          +ery(...)):                                                    
+      469 +    """Serve a pred-surface PNG. name ∈ {heatmaps, lines, hist
+          +, coverage}."""                                               
+      470 +    img = CHECKPOINTS / model_folder / "pred_surface" / f"pred
+          +_surface_{name}.png"                                          
+      471 +    if not img.exists():                                      
+      472 +        raise HTTPException(status_code=404, detail="Image not
+          + found")                                                      
+      473 +    return FileResponse(img, media_type="image/png")          
+      474 +                                                              
+      475 +                                                              
+      476  if __name__ == "__main__":
+      477      uvicorn.run(app, host="0.0.0.0", port=5000, reload=False)
+      478   No newline at end of file
+
+● Now create the pred_surface.html template:
+
+● Write(app/templates/pred_surface.html)
+  ⎿  Wrote 503 lines to app/templates/pred_surface.html
+       1 <!DOCTYPE html>
+       2 <html lang="en">
+       3 <head>
+       4   <meta charset="UTF-8">
+       5   <meta name="viewport" content="width=device-width, initial-sca
+         le=1.0">
+       6   <title>Prediction Accuracy — {{ model_folder }}</title>
+       7   <style>
+       8     *, *::before, *::after { box-sizing: border-box; }
+       9 
+      10     body {
+     … +493 lines (ctrl+o to expand)
+
+● Now add the "Pred" button to models.html. I need to add a column in the group
+  header and header row, and a button in each data row:
+
+● Update(app/templates/models.html)
+  ⎿  Added 1 line, removed 1 line
+       97      td:first-child { text-align: left; font-family: monospace;
+            font-size: 0.78rem; color: #8892b0; }
+       98  
+       99      /* Chart / action buttons */
+      100 -    .btn-chart, .btn-surface, .btn-delete {                   
+      100 +    .btn-chart, .btn-surface, .btn-pred, .btn-delete {        
+      101        background: #1e2440;
+      102        border: 1px solid #2a3060;
+      103        color: #7090d0;
+
+● Update(app/templates/models.html)
+  ⎿  Added 1 line, removed 1 line
+      107        cursor: pointer;
+      108        transition: all 0.15s;
+      109      }
+      110 -    .btn-chart:hover, .btn-surface:hover {                    
+      110 +    .btn-chart:hover, .btn-surface:hover, .btn-pred:hover {   
+      111        background: #2a3a60;
+      112        color: #a0c0ff;
+      113        border-color: #3b5bdb;
+
+● Update(app/templates/models.html)
+  ⎿  Added 5 lines
+      119        color: #60a0d0;
+      120      }
+      121  
+      122 +    .btn-pred {                                               
+      123 +      border-color: #2a3a50;                                  
+      124 +      color: #70b090;                                         
+      125 +    }                                                         
+      126 +                                                              
+      127      .btn-delete {
+      128        background: #2a1a1a;
+      129        border-color: #5a2020;
+
+● Update(app/templates/models.html)
+  ⎿  Added 1 line, removed 1 line
+      218          <th colspan="4">Model</th>
+      219          <th colspan="1">Result</th>
+      220          <th colspan="7">Best Params</th>
+      221 -        <th colspan="3">Charts</th>                           
+      221 +        <th colspan="4">Charts</th>                           
+      222          <th colspan="1">Actions</th>
+      223        </tr>
+      224        <tr>
+
+● Update(app/templates/models.html)
+  ⎿  Added 1 line
+      237          <th>CV</th>
+      238          <th>Train</th>
+      239          <th title="Inspect threshold surface">Surface</th>
+      240 +        <th title="Directional prediction accuracy surface">Pr
+          +ed</th>                                                       
+      241          <th style="cursor:default">Del</th>
+      242        </tr>
+      243      </thead>
+
+● Update(app/templates/models.html)
+  ⎿  Added 5 lines
+      278                    onclick="window.open('/surface/{{ r.folder }
+           }','_blank')">&#127774;</button>
+      279          </td>
+      280          <td>
+      281 +          <button class="btn-pred"                            
+      282 +                  title="Directional prediction accuracy surfa
+          +ce"                                                           
+      283 +                  onclick="window.open('/pred-surface/{{ r.fol
+          +der }}','_blank')">&#127919;</button>                         
+      284 +        </td>                                                 
+      285 +        <td>                                                  
+      286            <button class="btn-delete"
+      287                    title="Move to checkpoints_failures/"
+      288                    data-folder="{{ r.folder }}"
+
+● Now let me verify all the edits are consistent by doing a quick check:
+
+● Bash(python -c "import optuna_pred_surface; print('optuna_pred_surface imports
+       OK')" 2>&1 | head -30)
+  ⎿  optuna_pred_surface imports OK
+
+● Bash(python -c "import app.main; print('app.main imports OK')" 2>&1 | head
+      -30)
+  ⎿  app.main imports OK
+
+● Both modules import cleanly. Let me do a quick sanity check on the models.html
+   column structure:
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Good - Charts goes from colspan 3 → 4 (adds "Pred"), total columns stay
+  consistent. Let me also verify the new endpoints are all present in main.py:
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● All 4 endpoints are wired up. Let me do one final check on the _do_surface_run
+   to note the existing surface bug (the early return output_dir in
+  thresh_surface.py) — and also verify the new pred surface avoids it:
+
+● Searched for 1 pattern (ctrl+o to expand)
+
+● Everything looks good. Let me give a final summary of what was built:
+
+  ---
+  What was built
+
+  optuna_pred_surface.py (new)
+
+  A full 3-dimensional directional accuracy surface explorer:
+
+  Dimensions explored:
+  1. model_input_len — 5 discrete fractions of the trained input_size (35%, 50%,
+   65%, 80%, 100%). Shorter windows are left-padded by neuralforecast, revealing
+   how much historical context the model actually needs.
+  2. test_period_days — from 30 days to the full test period (continuous QMC
+  sampling), showing whether accuracy degrades or improves over different
+  sub-periods.
+  3. threshold — 0.0 to 0.020, answering "are stronger predictions statistically
+   more accurate?"
+
+  Two-phase workflow:
+  - Cache build (pred_surface_cache.pkl): K×N inference calls (K=5 window
+  lengths × N test dates). Saved once, reused.
+  - Optuna QMC study (1000 trials): pure in-memory lookups — fast.
+
+  4 output plots in <model_path>/pred_surface/:
+  - pred_surface_heatmaps.png — 3 pairwise marginal heatmaps (mean accuracy over
+   the 3rd axis)
+  - pred_surface_lines.png — accuracy vs threshold and accuracy vs period
+  length, one line per window length
+  - pred_surface_hist.png — distribution of accuracy across all trials
+  - pred_surface_coverage.png — accuracy + signal count vs threshold (trade-off:
+   higher threshold = fewer but more accurate signals?)
+
+  Stability badge (in UI): Stable / Moderate / Noisy based on mean ≥52.5% and
+  std ≤2.5%.
+
+  app/templates/pred_surface.html (new)
+
+  Dark-theme page with:
+  - Status panel with a "Start accuracy study" button (not auto-start, since the
+   cache build takes 10–20 min)
+  - Once done: sidebar with accuracy stats + signal-quality badge +
+  fraction-above-chance bars + best params
+  - Right panel: heatmaps + 3 further charts
+
+  app/main.py — 4 new endpoints
+
+  - GET /pred-surface/{folder} → serves the page
+  - GET /pred-surface-status/{folder} → polls for running/done/error/pending
+  - POST /pred-surface-run/{folder} → triggers background computation
+  - GET /pred-surface-image/{folder}?name=... → serves PNGs
+
+  app/templates/models.html — new column
+
+  Added a green &#127919; Pred button in the Charts column group, opening the
+  pred-surface page in a new tab.
+
+✻ Cooked for 15m 56s

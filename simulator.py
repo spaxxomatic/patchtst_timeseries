@@ -4,7 +4,7 @@ from IPython.core.inputtransformer2 import tr
 from lib.trade import Trade
 from matplotlib.pylab import mean
 
-from lib.tradeparams import TradeSimulData, TradeSimParams, Trader, dump_params_to_json
+from lib.tradeparams import TradeSimulData, TradeSimParams, Trader, dump_params_to_json, locate_model_folder
 from pathlib import Path
 import json
 import pandas as pd
@@ -157,8 +157,8 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
 
     def get_signal_from_confidence(predictions):
         trend_pred = mean([p['PatchTST-median'] for p in predictions])
-        avg_lo_80  = mean([p['PatchTST-lo-80']  for p in predictions])
-        avg_hi_80  = mean([p['PatchTST-hi-80']  for p in predictions])
+        #avg_lo_80  = mean([p['PatchTST-lo-80']  for p in predictions])
+        #avg_hi_80  = mean([p['PatchTST-hi-80']  for p in predictions])
 
         signal = 0
         if trend_pred > float(THRESHOLD):
@@ -292,21 +292,22 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
 if __name__ == "__main__":
     
     for signal_horizon_step in range(1,8):
-        traded_symbol = '^RUT'
+        traded_symbol = 'AAPL'
         params = TradeSimParams(
-            THRESHOLD=0.004,
-            STOPLOSS_THRESHOLD= -0.15,
-            TRAILING_STOP_THRESHOLD= 0.8,        
+            THRESHOLD=0.0025,
+            STOPLOSS_THRESHOLD= -0.2,
+            TRAILING_STOP_THRESHOLD= 0.7,        
             FEE= 0.0005,
             traded_symbol = traded_symbol,
             tickers = [traded_symbol, '^SPX', '^VIX'],
             load_data_from_date="2015-01-01",
-            trading_start="2025-01-01",
-            trading_end="2025-12-15",
+            trading_start="2023-01-01",
+            trading_end="2024-12-15",
             signal_horizon_steps=signal_horizon_step,
             # model_path auto-generated as checkpoints/KO_2020-01-01_2025-01-01
             # override here if needed:
             # model_path="./checkpoints/patchtst_momentum_model_multivar_100days_KO_conf_interval/",
             )
         
+        params.model_storage_folder =  locate_model_folder(params.traded_symbol, params.load_data_from_date)
         run_simulation(params)   

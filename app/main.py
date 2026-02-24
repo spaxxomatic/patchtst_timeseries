@@ -15,10 +15,12 @@ from pathlib import Path
 import uvicorn
 from app.reports import load_reports, get_symbols, TRADESIMLOG, PROJECT_ROOT
 from app.model_reports import load_model_reports, CHECKPOINTS
+from lib.tradeparams import TradeSimParams
 from simulator import _SIM_GENERATED_FILES, _SIM_LOCK_FILE
 
 CHECKPOINTS_FAILURES = PROJECT_ROOT / "checkpoints_failures"
-_SURFACE_LOCK = "surface.lock"
+_SURFACE_LOCK      = "surface.lock"
+_PRED_SURFACE_LOCK = "pred_surface.lock"
 
 app = FastAPI(title="TradeSimulator Dashboard")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -355,7 +357,7 @@ def _do_surface_run(model_folder: str) -> None:
         if not hasattr(params, "model_storage_folder") or params.model_storage_folder is None:
             params.model_storage_folder = Path(params.model_path) / "model"
 
-        run_surface_study(params, n_trials=300, output_dir=study_dir)
+        run_surface_study(params, n_trials=600, output_dir=study_dir)
     except Exception as exc:
         # Persist error message so the UI can surface it
         (study_dir / "surface_error.txt").write_text(str(exc))
@@ -387,6 +389,116 @@ async def surface_image(model_folder: str, name: str = Query(...)):
     if not img.exists():
         raise HTTPException(status_code=404, detail="Image not found")
     return FileResponse(img, media_type="image/png")
+
+
+# ─── Prediction accuracy surface study ───────────────────────────────────────
+
+@app.get("/pred-surface/{model_folder:path}", response_class=HTMLResponse)
+async def pred_surface_page(request: Request, model_folder: str):
+    return templates.TemplateResponse("pred_surface.html", {
+        "request":      request,
+        "model_folder": model_folder,
+    })
+
+
+@app.get("/pred-surface-status/{model_folder:path}")
+async def pred_surface_status(model_folder: str):
+    study_dir    = CHECKPOINTS / model_folder / "pred_surface"
+    lock_file    = study_dir / _PRED_SURFACE_LOCK
+    summary_file = study_dir / "pred_surface_summary.json"
+    error_file   = study_dir / "pred_surface_error.txt"
+
+    if lock_file.exists():
+        return JSONResponse({"status": "running"})
+    if error_file.exists():
+        return JSONResponse({"status": "error", "message": error_file.read_text()})
+    if summary_file.exists():
+        summary = json.loads(summary_file.read_text())
+        images  = {
+            name: (study_dir / f"pred_surface_{name}.png").exists()
+            for name in ("heatmaps", "lines", "hist", "coverage")
+        }
+        return JSONResponse({"status": "done", "summary": summary, "images": images})
+    return JSONResponse({"status": "pending"})
+
+
+def _do_pred_surface_run(model_folder: str) -> None:
+    from optuna_pred_surface import run_pred_surface_study
+
+    os.chdir(PROJECT_ROOT)
+    study_dir = CHECKPOINTS / model_folder / "pred_surface"
+    lock_file = study_dir / _PRED_SURFACE_LOCK
+    try:
+        sim_folder = _find_tradesim_folder_for_model(model_folder)
+        if sim_folder is None:
+            raise RuntimeError(f"No tradesimlog entry found for model {model_folder}")
+
+        params = TradeSimParams.load_from_folder(sim_folder)
+        if not hasattr(params, "model_storage_folder") or params.model_storage_folder is None:
+            object.__setattr__(params, "model_storage_folder", Path(params.model_path) / "model")
+
+        run_pred_surface_study(params, n_trials=1000, output_dir=study_dir)
+    except Exception as exc:
+        study_dir.mkdir(parents=True, exist_ok=True)
+        (study_dir / "pred_surface_error.txt").write_text(str(exc))
+    finally:
+        lock_file.unlink(missing_ok=True)
+
+
+@app.post("/pred-surface-run/{model_folder:path}")
+async def pred_surface_run(model_folder: str, background_tasks: BackgroundTasks):
+    study_dir = CHECKPOINTS / model_folder / "pred_surface"
+    lock_file = study_dir / _PRED_SURFACE_LOCK
+    if lock_file.exists():
+        return JSONResponse({"status": "already_running"})
+    if (study_dir / "pred_surface_summary.json").exists():
+        return JSONResponse({"status": "already_done"})
+    sim_folder = _find_tradesim_folder_for_model(model_folder)
+    if sim_folder is None:
+        raise HTTPException(
+            status_code=422,
+            detail="No tradesimlog run found for this model — run a simulation first",
+        )
+    study_dir.mkdir(parents=True, exist_ok=True)
+    lock_file.touch()
+    background_tasks.add_task(_do_pred_surface_run, model_folder)
+    return JSONResponse({"status": "started"})
+
+
+@app.get("/pred-surface-image/{model_folder:path}")
+async def pred_surface_image(model_folder: str, name: str = Query(...)):
+    """Serve a pred-surface PNG. name ∈ {heatmaps, lines, hist, coverage}."""
+    img = CHECKPOINTS / model_folder / "pred_surface" / f"pred_surface_{name}.png"
+    if not img.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(img, media_type="image/png")
+
+
+def _do_pred_surface_replot(model_folder: str) -> None:
+    from optuna_pred_surface import replot_from_existing
+    os.chdir(PROJECT_ROOT)
+    output_dir = CHECKPOINTS / model_folder / "pred_surface"
+    lock_file  = output_dir / _PRED_SURFACE_LOCK
+    try:
+        replot_from_existing(output_dir)
+    except Exception as exc:
+        (output_dir / "pred_surface_error.txt").write_text(str(exc))
+    finally:
+        lock_file.unlink(missing_ok=True)
+
+
+@app.post("/pred-surface-replot/{model_folder:path}")
+async def pred_surface_replot(model_folder: str, background_tasks: BackgroundTasks):
+    """Regenerate plots from an existing CSV — no inference or Optuna."""
+    study_dir = CHECKPOINTS / model_folder / "pred_surface"
+    lock_file = study_dir / _PRED_SURFACE_LOCK
+    if not (study_dir / "pred_surface_results.csv").exists():
+        raise HTTPException(status_code=422, detail="No results CSV — run the full study first")
+    if lock_file.exists():
+        return JSONResponse({"status": "already_running"})
+    lock_file.touch()
+    background_tasks.add_task(_do_pred_surface_replot, model_folder)
+    return JSONResponse({"status": "started"})
 
 
 if __name__ == "__main__":

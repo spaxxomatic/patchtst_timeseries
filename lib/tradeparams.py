@@ -11,6 +11,21 @@ from dataclasses import dataclass, field, asdict, fields as dc_fields
 class Period(dict):
     pass
 
+def locate_model_folder(traded_symbol, load_data_from_date):
+    symbol_clean = traded_symbol.replace('^', '')
+    #look for model that was trained with the same symbol and load date , ignoring the trading start date since we want to be able to reuse a model for multiple test periods
+    matching_model_folder = None
+    checkpoints_path = Path("checkpoints")  
+    if checkpoints_path.is_dir():
+        for folder in checkpoints_path.iterdir():
+            if folder.is_dir() and folder.name.startswith(f"{symbol_clean}_{load_data_from_date}"):
+                matching_model_folder = folder.name
+                break   
+    if matching_model_folder is None:
+        print(f"No matching model folder found for symbol {traded_symbol} and load date {load_data_from_date} in checkpoints/")
+        return None
+    return checkpoints_path / matching_model_folder / "model"
+
 PARAMS_DUMPFILE = "tradesimparams.json"
 @dataclass
 class TradeSimParams:

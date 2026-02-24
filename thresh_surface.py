@@ -318,14 +318,14 @@ def _local_roughness(df: pd.DataFrame, k: int = 8) -> float:
 
 def run_surface_study(
     params: TradeSimParams,
-    n_trials: int = 300,
+    n_trials: int = 600,
     threshold_range: Tuple[float, float] = (0.001, 0.020),
     stoploss_range:  Tuple[float, float] = (-0.25, -0.02),
     trailing_range:  Tuple[float, float] = (0.30,  0.95),
     output_dir: Optional[Path] = None,
     cache_file: Optional[Path] = None,
     force_cache: bool = False,
-) -> pd.DataFrame:
+) -> Path:
     """Run an Optuna QMC study over the three threshold parameters.
 
     The sampler is set to ``QMCSampler`` (quasi-Monte Carlo with scrambling)
@@ -348,6 +348,8 @@ def run_surface_study(
     """
     if output_dir is None:
         output_dir = Path(params.model_path) / "surface_study"
+    else:
+        return output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if cache_file is None:
@@ -380,10 +382,12 @@ def run_surface_study(
         return replay_simulation(cache, opens, closes, test_dates, FEE, thr, sl, ts)
 
     sampler = optuna.samplers.QMCSampler(scramble=True)
+    
     study   = optuna.create_study(
         direction="maximize",       # surface map; direction doesn't change coverage
         sampler=sampler,
-        study_name="thresh_surface",
+        storage=f"sqlite:///{output_dir}/db.sqlite3",
+        study_name=params.traded_symbol + ":thresh_surface",
     )
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     print(f"\nRunning {n_trials} trials…")
@@ -403,8 +407,7 @@ def run_surface_study(
     # ── 5. Plots + roughness stats ────────────────────────────────────────────
     plot_surface(df, output_dir)
 
-    return df
-
+    return output_dir
 
 # ─── Visualisation ────────────────────────────────────────────────────────────
 
@@ -559,7 +562,7 @@ def _parse_args() -> argparse.Namespace:
         help="Load params from an existing tradesimlog run folder",
     )
 
-    p.add_argument("--n-trials",    type=int,   default=300,  help="Optuna trial count")
+    p.add_argument("--n-trials",    type=int,   default=600,  help="Optuna trial count")
     p.add_argument("--cache-only",  action="store_true", help="Build cache and exit")
     p.add_argument("--force-cache", action="store_true", help="Rebuild cache even if present")
 
