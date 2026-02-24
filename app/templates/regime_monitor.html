@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Regime Monitor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.3rem; margin: 0 0 4px; color: #fff; }
+    .subtitle { font-size: 0.78rem; color: #4a5280; font-family: monospace; margin-bottom: 18px; }
+
+    /* ── Nav ─────────────────────────────────────────────────────────────── */
+    .nav { margin-bottom: 20px; display: flex; gap: 8px; align-items: center; }
+    .nav a {
+      padding: 5px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #1e2130;
+      color: #8892b0;
+      border: 1px solid #2a2f45;
+    }
+    .nav a:hover  { background: #2a3050; color: #cdd5f3; }
+    .nav a.active { background: #1a2a3a; color: #74c0fc; border-color: #2a4a6a; }
+
+    /* ── Overview bar ────────────────────────────────────────────────────── */
+    .overview-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .ov-stat {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .ov-inverted { background: #3a1010; color: #ff6b6b; border: 1px solid #5a2020; }
+    .ov-aligned  { background: #1a3a1a; color: #51cf66; border: 1px solid #2a5a2a; }
+    .ov-noisy    { background: #1e2130; color: #8892b0; border: 1px solid #2a3050; }
+
+    /* ── Legend ──────────────────────────────────────────────────────────── */
+    .legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 0.74rem;
+      color: #6a7290;
+      margin-bottom: 20px;
+      align-items: center;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+
+    /* ── Table ───────────────────────────────────────────────────────────── */
+    .regime-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .regime-table thead th {
+      text-align: left;
+      padding: 7px 10px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #4a5280;
+      border-bottom: 1px solid #2a2f45;
+      white-space: nowrap;
+      background: #0f1117;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+    .regime-table thead th.acc-th { text-align: right; }
+
+    /* ── Sector header rows ───────────────────────────────────────────────── */
+    tr.sector-hdr {
+      background: #141720;
+      cursor: pointer;
+      user-select: none;
+    }
+    tr.sector-hdr:hover { background: #1a1e2a; }
+    tr.sector-hdr td {
+      padding: 7px 10px;
+      border-top: 2px solid #2a2f45;
+      border-bottom: 1px solid #1e2230;
+    }
+    .sector-pill {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .sec-count {
+      font-size: 0.74rem;
+      color: #5a6290;
+      vertical-align: middle;
+    }
+    .toggle-icon {
+      float: right;
+      color: #4a5280;
+      font-size: 0.75rem;
+      margin-top: 2px;
+    }
+
+    /* ── Sector summary acc cells ─────────────────────────────────────────── */
+    td.sec-acc-cell {
+      text-align: right;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 6px 10px;
+      white-space: nowrap;
+    }
+    td.sec-acc-cell.above { color: #51cf66; }
+    td.sec-acc-cell.below { color: #ff6b6b; }
+    td.sec-acc-cell.neutral { color: #8892b0; }
+    .dir-counts {
+      font-size: 0.67rem;
+      font-weight: 400;
+      margin-top: 1px;
+      text-align: right;
+    }
+    .dir-counts .up   { color: #37b24d; margin-right: 4px; }
+    .dir-counts .down { color: #c92a2a; }
+
+    /* ── Stock rows ───────────────────────────────────────────────────────── */
+    tr.stock-row td { padding: 5px 10px; border-bottom: 1px solid #191d2a; }
+    tr.stock-row:hover td { background: #131620; }
+
+    a.sym-link {
+      color: #74c0fc;
+      text-decoration: none;
+      font-family: monospace;
+      font-size: 0.88rem;
+      font-weight: 600;
+    }
+    a.sym-link:hover { color: #a5d8ff; text-decoration: underline; }
+
+    .asof-cell { color: #3a4260; font-family: monospace; font-size: 0.74rem; }
+
+    /* ── Accuracy cells ───────────────────────────────────────────────────── */
+    td.acc-cell {
+      text-align: right;
+      white-space: nowrap;
+      padding: 5px 10px;
+    }
+    td.acc-cell.above  { background: rgba(81,207,102,0.08); color: #51cf66; }
+    td.acc-cell.below  { background: rgba(255,107,107,0.08); color: #ff6b6b; }
+    td.acc-cell.neutral { color: #8892b0; }
+    .nsig {
+      display: block;
+      font-size: 0.67rem;
+      color: #3a4060;
+      font-family: monospace;
+    }
+    .na { color: #2a3050; }
+
+    /* ── Status badges ────────────────────────────────────────────────────── */
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.71rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status-aligned        { background: #1a3a1a; color: #51cf66; border: 1px solid #2a5a2a; }
+    .status-aligned_broad  { background: #1a2a3a; color: #74c0fc; border: 1px solid #1a4a6a; }
+    .status-inverted       { background: #3a1010; color: #ff6b6b; border: 1px solid #5a2020; }
+    .status-inverted_broad { background: #3a2810; color: #fcc419; border: 1px solid #5a4010; }
+    .status-noisy          { background: #1a1e2a; color: #4a5280; border: 1px solid #2a3050; }
+  </style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="/">Simulations</a>
+  <a href="/models">Models</a>
+  <a href="/regime" class="active">Regime Monitor</a>
+</div>
+
+<h1>&#128225; Regime Change Monitor</h1>
+<p class="subtitle">
+  Rolling directional accuracy (sign match) &bull;
+  {{ total }} models &bull; windows: 30 / 40 / 60 d + full period &bull;
+  as of {{ max_as_of }}
+</p>
+
+<!-- Overview bar -->
+<div class="overview-bar">
+  <span class="ov-stat ov-inverted">{{ n_inverted }} inverted</span>
+  <span class="ov-stat ov-aligned">{{ n_aligned }} aligned</span>
+  <span class="ov-stat ov-noisy">{{ total - n_inverted - n_aligned }} noisy / broad</span>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item">
+    <span class="status-badge status-aligned">aligned</span>
+    <span>30d CI fully &gt;50%</span>
+  </div>
+  <div class="legend-item">
+    <span class="status-badge status-aligned_broad">aligned broad</span>
+    <span>full CI &gt;50%, 30d uncertain</span>
+  </div>
+  <div class="legend-item">
+    <span class="status-badge status-inverted">inverted</span>
+    <span>30d CI fully &lt;50%</span>
+  </div>
+  <div class="legend-item">
+    <span class="status-badge status-inverted_broad">inverted broad</span>
+    <span>full CI &lt;50%, 30d uncertain</span>
+  </div>
+  <div class="legend-item">
+    <span class="status-badge status-noisy">noisy</span>
+    <span>all CIs span 50%</span>
+  </div>
+  <div class="legend-item" style="margin-left:8px; color:#3a4260">
+    &#9432; Hover acc cell for 95% Wilson CI
+  </div>
+</div>
+
+<!-- Table -->
+<table class="regime-table">
+  <thead>
+    <tr>
+      <th>Symbol</th>
+      <th>As-Of</th>
+      <th class="acc-th">30d Acc</th>
+      <th class="acc-th">40d Acc</th>
+      <th class="acc-th">60d Acc</th>
+      <th class="acc-th">Full Acc</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+
+  {% for group in groups %}
+    {% set sec_sum = group.summary %}
+    {% set sidx = loop.index0 %}
+
+    {# ── Sector header row ────────────────────────────────────────────────── #}
+    <tr class="sector-hdr" data-sector="{{ sidx }}" onclick="toggleSector({{ sidx }})">
+      <td>
+        <span class="sector-pill"
+              style="background:{{ group.color }}22;border:1px solid {{ group.color }}55;color:{{ group.color }}">
+          {{ group.sector }}
+        </span>
+        <span class="sec-count">{{ group.rows|length }} stocks</span>
+        <span class="toggle-icon">&#9660;</span>
+      </td>
+      <td></td>
+
+      {# 30d sector summary #}
+      {% set med = sec_sum.get("median_30d", 0.5) %}
+      <td class="sec-acc-cell {% if med > 0.515 %}above{% elif med < 0.485 %}below{% else %}neutral{% endif %}">
+        {{ (med * 100)|round(1) }}%
+        <div class="dir-counts">
+          <span class="up">&#8593;{{ sec_sum.get("n_above_30d", 0) }}</span>
+          <span class="down">&#8595;{{ sec_sum.get("n_below_30d", 0) }}</span>
+        </div>
+      </td>
+
+      {# 40d sector summary #}
+      {% set med = sec_sum.get("median_40d", 0.5) %}
+      <td class="sec-acc-cell {% if med > 0.515 %}above{% elif med < 0.485 %}below{% else %}neutral{% endif %}">
+        {{ (med * 100)|round(1) }}%
+        <div class="dir-counts">
+          <span class="up">&#8593;{{ sec_sum.get("n_above_40d", 0) }}</span>
+          <span class="down">&#8595;{{ sec_sum.get("n_below_40d", 0) }}</span>
+        </div>
+      </td>
+
+      {# 60d sector summary #}
+      {% set med = sec_sum.get("median_60d", 0.5) %}
+      <td class="sec-acc-cell {% if med > 0.515 %}above{% elif med < 0.485 %}below{% else %}neutral{% endif %}">
+        {{ (med * 100)|round(1) }}%
+        <div class="dir-counts">
+          <span class="up">&#8593;{{ sec_sum.get("n_above_60d", 0) }}</span>
+          <span class="down">&#8595;{{ sec_sum.get("n_below_60d", 0) }}</span>
+        </div>
+      </td>
+
+      {# Full period sector summary #}
+      {% set med = sec_sum.get("median_full", 0.5) %}
+      <td class="sec-acc-cell {% if med > 0.515 %}above{% elif med < 0.485 %}below{% else %}neutral{% endif %}">
+        {{ (med * 100)|round(1) }}%
+        <div class="dir-counts">
+          <span class="up">&#8593;{{ sec_sum.get("n_above_full", 0) }}</span>
+          <span class="down">&#8595;{{ sec_sum.get("n_below_full", 0) }}</span>
+        </div>
+      </td>
+
+      <td></td>
+    </tr>
+
+    {# ── Stock rows ───────────────────────────────────────────────────────── #}
+    {% for row in group.rows %}
+    <tr class="stock-row" data-group="{{ sidx }}">
+      <td>
+        <a href="/pred-surface/{{ row.folder }}" class="sym-link">{{ row.symbol }}</a>
+      </td>
+      <td class="asof-cell">{{ row.as_of }}</td>
+
+      {# 30d acc #}
+      {% if row.n_30d > 0 %}
+      <td class="acc-cell {{ row.class_30d }}"
+          title="95% CI: {{ (row.ci_lo_30d*100)|round(1) }}% – {{ (row.ci_hi_30d*100)|round(1) }}%  (n={{ row.n_30d }})">
+        {{ (row.acc_30d*100)|round(1) }}%
+        <span class="nsig">n={{ row.n_30d }}</span>
+      </td>
+      {% else %}
+      <td class="acc-cell neutral"><span class="na">—</span></td>
+      {% endif %}
+
+      {# 40d acc #}
+      {% if row.n_40d > 0 %}
+      <td class="acc-cell {{ row.class_40d }}"
+          title="95% CI: {{ (row.ci_lo_40d*100)|round(1) }}% – {{ (row.ci_hi_40d*100)|round(1) }}%  (n={{ row.n_40d }})">
+        {{ (row.acc_40d*100)|round(1) }}%
+        <span class="nsig">n={{ row.n_40d }}</span>
+      </td>
+      {% else %}
+      <td class="acc-cell neutral"><span class="na">—</span></td>
+      {% endif %}
+
+      {# 60d acc #}
+      {% if row.n_60d > 0 %}
+      <td class="acc-cell {{ row.class_60d }}"
+          title="95% CI: {{ (row.ci_lo_60d*100)|round(1) }}% – {{ (row.ci_hi_60d*100)|round(1) }}%  (n={{ row.n_60d }})">
+        {{ (row.acc_60d*100)|round(1) }}%
+        <span class="nsig">n={{ row.n_60d }}</span>
+      </td>
+      {% else %}
+      <td class="acc-cell neutral"><span class="na">—</span></td>
+      {% endif %}
+
+      {# Full acc #}
+      {% if row.n_full > 0 %}
+      <td class="acc-cell {{ row.class_full }}"
+          title="95% CI: {{ (row.ci_lo_full*100)|round(1) }}% – {{ (row.ci_hi_full*100)|round(1) }}%  (n={{ row.n_full }})">
+        {{ (row.acc_full*100)|round(1) }}%
+        <span class="nsig">n={{ row.n_full }}</span>
+      </td>
+      {% else %}
+      <td class="acc-cell neutral"><span class="na">—</span></td>
+      {% endif %}
+
+      {# Status #}
+      <td>
+        <span class="status-badge status-{{ row.status }}">
+          {{ row.status|replace("_", " ") }}
+        </span>
+      </td>
+    </tr>
+    {% endfor %}
+
+  {% endfor %}
+  </tbody>
+</table>
+
+<script>
+(function () {
+  function toggleSector(idx) {
+    var rows = document.querySelectorAll('.stock-row[data-group="' + idx + '"]');
+    var hdr  = document.querySelector('.sector-hdr[data-sector="' + idx + '"]');
+    var icon = hdr ? hdr.querySelector('.toggle-icon') : null;
+    var isVisible = rows.length > 0 && rows[0].style.display !== 'none';
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].style.display = isVisible ? 'none' : '';
+    }
+    if (icon) icon.innerHTML = isVisible ? '&#9654;' : '&#9660;';
+  }
+  window.toggleSector = toggleSector;
+})();
+</script>
+
+</body>
+</html>

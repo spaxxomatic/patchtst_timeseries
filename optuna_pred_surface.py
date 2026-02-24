@@ -523,7 +523,7 @@ def plot_pred_surface(
     ax1.set_ylabel("Directional Accuracy", color="#8892b0")
     ax1.set_title("Accuracy vs Threshold\n(full test period, by input window)", color="#cdd5f3")
     ax1.legend(fontsize=8, loc="upper left", facecolor="#1e2130", labelcolor="#8892b0")
-    ax1.set_ylim(0.30, 0.80)
+    ax1.set_ylim(0.0, 1.0)
     ax1.grid(alpha=0.12, color="#2a2f45")
     ax1.tick_params(colors="#8892b0")
 
@@ -548,7 +548,7 @@ def plot_pred_surface(
     ax2.set_ylabel("Directional Accuracy", color="#8892b0")
     ax2.set_title("Accuracy vs Test Period Length\n(threshold≈0, by input window)", color="#cdd5f3")
     ax2.legend(fontsize=8, loc="upper left", facecolor="#1e2130", labelcolor="#8892b0")
-    ax2.set_ylim(0.30, 0.80)
+    ax2.set_ylim(0.0, 1.0)
     ax2.grid(alpha=0.12, color="#2a2f45")
     ax2.tick_params(colors="#8892b0")
 

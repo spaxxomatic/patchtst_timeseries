@@ -1,0 +1,35 @@
+{
+  "traded_symbol": "MU",
+  "tickers": [
+    "MU",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.625,
+  "best_params": {
+    "input_size": 120,
+    "patch_len": 16,
+    "stride": 2,
+    "encoder_layers": 5,
+    "n_heads": 8,
+    "hidden_size": 64,
+    "linear_hidden_size": 32,
+    "dropout": 0.073424250185008,
+    "learning_rate": 0.00036710987019320315
+  },
+  "runtime": 2250,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50
+  }
+}

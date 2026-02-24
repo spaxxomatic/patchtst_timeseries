@@ -292,17 +292,17 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
 if __name__ == "__main__":
     
     for signal_horizon_step in range(1,8):
-        traded_symbol = 'AAPL'
+        traded_symbol = 'AMGN'
         params = TradeSimParams(
-            THRESHOLD=0.0025,
+            THRESHOLD=0.001,
             STOPLOSS_THRESHOLD= -0.2,
             TRAILING_STOP_THRESHOLD= 0.7,        
             FEE= 0.0005,
             traded_symbol = traded_symbol,
             tickers = [traded_symbol, '^SPX', '^VIX'],
             load_data_from_date="2015-01-01",
-            trading_start="2023-01-01",
-            trading_end="2024-12-15",
+            trading_start="2025-01-01",
+            trading_end="2025-04-01",
             signal_horizon_steps=signal_horizon_step,
             # model_path auto-generated as checkpoints/KO_2020-01-01_2025-01-01
             # override here if needed:

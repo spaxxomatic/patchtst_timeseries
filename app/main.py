@@ -501,5 +501,52 @@ async def pred_surface_replot(model_folder: str, background_tasks: BackgroundTas
     return JSONResponse({"status": "started"})
 
 
+# ─── Regime Change Monitor ────────────────────────────────────────────────────
+
+@app.get("/regime", response_class=HTMLResponse)
+async def regime_page(request: Request):
+    from app.regime_monitor import load_regime_data, sector_summary, SECTOR_ORDER, SECTOR_COLORS
+    from collections import defaultdict
+
+    rows      = load_regime_data()
+    summaries = {s["sector"]: s for s in sector_summary(rows)}
+
+    grouped: dict = defaultdict(list)
+    for row in rows:
+        grouped[row["sector"]].append(row)
+
+    groups = []
+    for sector in SECTOR_ORDER:
+        if sector in grouped:
+            groups.append({
+                "sector":  sector,
+                "color":   SECTOR_COLORS.get(sector, "#495057"),
+                "rows":    grouped[sector],
+                "summary": summaries.get(sector, {}),
+            })
+
+    n_inverted   = sum(1 for r in rows if r["status"] in ("inverted", "inverted_broad"))
+    n_aligned    = sum(1 for r in rows if r["status"] in ("aligned", "aligned_broad"))
+    as_of_dates  = [r["as_of"] for r in rows if r["as_of"] != "—"]
+    max_as_of    = max(as_of_dates) if as_of_dates else "—"
+
+    return templates.TemplateResponse("regime_monitor.html", {
+        "request":    request,
+        "groups":     groups,
+        "total":      len(rows),
+        "n_inverted": n_inverted,
+        "n_aligned":  n_aligned,
+        "max_as_of":  max_as_of,
+    })
+
+
+@app.get("/regime-data")
+async def regime_data_api():
+    from app.regime_monitor import load_regime_data, sector_summary
+    rows      = load_regime_data()
+    summaries = sector_summary(rows)
+    return JSONResponse({"rows": rows, "summaries": summaries})
+
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000, reload=False)
