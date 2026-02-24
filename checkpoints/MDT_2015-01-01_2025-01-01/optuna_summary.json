@@ -1,0 +1,35 @@
+{
+  "traded_symbol": "MDT",
+  "tickers": [
+    "MDT",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.5,
+  "best_params": {
+    "input_size": 40,
+    "patch_len": 4,
+    "stride": 8,
+    "encoder_layers": 5,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 256,
+    "dropout": 0.07716829410315014,
+    "learning_rate": 0.00022737702900194873
+  },
+  "runtime": 1997,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50
+  }
+}

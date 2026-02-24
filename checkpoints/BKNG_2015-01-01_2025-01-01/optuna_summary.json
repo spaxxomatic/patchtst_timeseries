@@ -1,0 +1,35 @@
+{
+  "traded_symbol": "BKNG",
+  "tickers": [
+    "BKNG",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.791667,
+  "best_params": {
+    "input_size": 140,
+    "patch_len": 8,
+    "stride": 2,
+    "encoder_layers": 5,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 256,
+    "dropout": 0.0006505232970290611,
+    "learning_rate": 0.00014004281010028286
+  },
+  "runtime": 2407,
+  "n_completed_trials": 49,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50
+  }
+}

@@ -143,11 +143,14 @@ def run_optuna(params, df_train, config: TrainConfig) -> optuna.Study:
             hr      = _fold_hit_rate(nf, df_fold, target_uid, config.n_cv_windows)
             fold_hit_rates.append(hr)
 
-            trial.report(np.mean(fold_hit_rates), step=fold)
+            # Report consistency score (mean - std) for pruning decisions
+            consistency = float(np.mean(fold_hit_rates) - np.std(fold_hit_rates))
+            trial.report(consistency, step=fold)
             if trial.should_prune():
                 raise optuna.exceptions.TrialPruned()
 
-        return float(np.mean(fold_hit_rates))
+        trial.set_user_attr('fold_hit_rates', fold_hit_rates)
+        return float(np.mean(fold_hit_rates) - np.std(fold_hit_rates))
 
     study = optuna.create_study(
         direction='maximize',
@@ -401,17 +404,33 @@ def _save_optuna_report(study: optuna.Study, params, config: TrainConfig, model_
                         runtime: int, threshold_calibration: dict = None):
     import pandas as pd
 
+    # Extract per-fold hit rates from the best trial's user attributes
+    best_fold_hrs = study.best_trial.user_attrs.get('fold_hit_rates', [])
+    if best_fold_hrs:
+        hrs = np.array(best_fold_hrs)
+        fold_kpis = {
+            'fold_hit_rates':         [round(float(h), 4) for h in hrs],
+            'fold_hr_mean':           round(float(hrs.mean()), 4),
+            'fold_hr_std':            round(float(hrs.std()),  4),
+            'fold_worst_hr':          round(float(hrs.min()),  4),
+            'n_folds_above_chance':   int((hrs > 0.5).sum()),
+            'fold_consistency_score': round(float(hrs.mean() - hrs.std()), 4),
+        }
+    else:
+        fold_kpis = {}
+
     summary = {
-        'traded_symbol':   params.traded_symbol,
-        'tickers':         params.tickers,
-        'load_data_from':  params.load_data_from_date,
-        'trading_start':   params.trading_start,
-        'best_hit_rate':   round(study.best_value, 6),
-        'best_params':     study.best_params,
-        'runtime':         runtime,
+        'traded_symbol':          params.traded_symbol,
+        'tickers':                params.tickers,
+        'load_data_from':         params.load_data_from_date,
+        'trading_start':          params.trading_start,
+        'best_consistency_score': round(study.best_value, 6),
+        'best_params':            study.best_params,
+        'runtime':                runtime,
         'n_completed_trials': len([t for t in study.trials
                                    if t.state == optuna.trial.TrialState.COMPLETE]),
         'config': {k: v for k, v in config.__dict__.items()},
+        **fold_kpis,
     }
     if threshold_calibration is not None:
         summary['threshold_calibration'] = threshold_calibration
@@ -472,14 +491,14 @@ def calibrate_threshold(nf: NeuralForecast, df_train, params, config: TrainConfi
 
 if __name__ == '__main__':
     from lib.tradeparams import TradeSimParams
-
+    traded_symbol='^RUT'
     params = TradeSimParams(
         THRESHOLD=0.0002,
         STOPLOSS_THRESHOLD=-0.01,
         TRAILING_STOP_THRESHOLD=0.3,
         FEE=0.0005,
-        traded_symbol='BRK-B',
-        tickers=['BRK-B', '^SPX' ,'^VIX'],
+        traded_symbol=traded_symbol,
+        tickers=[traded_symbol, '^SPX' ,'^VIX'],
         load_data_from_date='2010-01-01',
         trading_start='2025-01-01',
         trading_end='2025-11-01',

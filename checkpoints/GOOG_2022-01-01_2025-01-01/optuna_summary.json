@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "GOOG",
+  "tickers": [
+    "GOOG"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.833333,
+  "best_params": {
+    "input_size": 110,
+    "patch_len": 16,
+    "stride": 8,
+    "encoder_layers": 1,
+    "n_heads": 4,
+    "hidden_size": 64,
+    "linear_hidden_size": 256,
+    "dropout": 0.06398944308852857,
+    "learning_rate": 0.0006068064302262911
+  },
+  "runtime": 1829,
+  "n_completed_trials": 32,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.00237,
+    "p50": 0.004914,
+    "p75": 0.009799
+  }
+}

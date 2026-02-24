@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "LLY",
+  "tickers": [
+    "LLY"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.8125,
+  "best_params": {
+    "input_size": 130,
+    "patch_len": 4,
+    "stride": 4,
+    "encoder_layers": 3,
+    "n_heads": 8,
+    "hidden_size": 64,
+    "linear_hidden_size": 32,
+    "dropout": 0.0799206925245591,
+    "learning_rate": 0.0009772478562992384
+  },
+  "runtime": 2229,
+  "n_completed_trials": 44,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.003537,
+    "p50": 0.00782,
+    "p75": 0.01362
+  }
+}

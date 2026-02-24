@@ -39,6 +39,17 @@ def load_reports() -> list[dict]:
                 pass
 
         cm = data.get("confusion_matrix", {})
+
+        # Load model quality KPIs from optuna_summary.json
+        optuna_kpis = {}
+        if model_path:
+            optuna_file = PROJECT_ROOT / model_path / "optuna_summary.json"
+            if optuna_file.exists():
+                try:
+                    optuna_kpis = json.loads(optuna_file.read_text())
+                except Exception:
+                    pass
+
         rows.append({
             "run":                   folder.name,
             "symbol":                symbol,
@@ -72,6 +83,10 @@ def load_reports() -> list[dict]:
             "cm_fn":                 cm.get("FN"),
             "cm_tn":                 cm.get("TN"),
             "model_path":            model_path,
+            "fold_consistency":      optuna_kpis.get("fold_consistency_score"),
+            "fold_worst_hr":         optuna_kpis.get("fold_worst_hr"),
+            "n_folds_above_chance":  optuna_kpis.get("n_folds_above_chance"),
+            "fold_hr_std":           optuna_kpis.get("fold_hr_std"),
             "has_cv_chart": (
                 model_path is not None and
                 (PROJECT_ROOT / model_path / "cv_backtest.png").exists()

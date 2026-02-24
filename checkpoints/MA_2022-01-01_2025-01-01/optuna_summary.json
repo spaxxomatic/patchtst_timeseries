@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "MA",
+  "tickers": [
+    "MA"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.875,
+  "best_params": {
+    "input_size": 80,
+    "patch_len": 8,
+    "stride": 2,
+    "encoder_layers": 2,
+    "n_heads": 4,
+    "hidden_size": 32,
+    "linear_hidden_size": 512,
+    "dropout": 0.24922725551454772,
+    "learning_rate": 0.00010394786761106041
+  },
+  "runtime": 1773,
+  "n_completed_trials": 30,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.001161,
+    "p50": 0.002594,
+    "p75": 0.003933
+  }
+}

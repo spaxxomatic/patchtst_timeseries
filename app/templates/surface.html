@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Surface Study — {{ model_folder }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      margin: 0;
+      padding: 24px;
+    }
+
+    h1 { font-size: 1.3rem; margin: 0 0 4px; color: #fff; }
+    .subtitle { font-size: 0.78rem; color: #4a5280; font-family: monospace; margin-bottom: 20px; }
+
+    .nav { margin-bottom: 20px; }
+    .nav a {
+      padding: 5px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: #1e2130;
+      color: #8892b0;
+      border: 1px solid #2a2f45;
+    }
+    .nav a:hover { background: #2a3050; color: #cdd5f3; }
+
+    /* ── Status / spinner ───────────────────────────────────────────────── */
+    #status-panel {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #141720;
+      border: 1px solid #2a2f45;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+    }
+
+    .spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid #2a3060;
+      border-top-color: #4d7bdb;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #status-text { font-size: 0.9rem; color: #8892b0; }
+    #status-text strong { color: #cdd5f3; }
+
+    /* ── Results layout ─────────────────────────────────────────────────── */
+    #results { display: none; }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+
+    /* Stats sidebar */
+    .stats-panel {
+      background: #141720;
+      border: 1px solid #2a2f45;
+      border-radius: 8px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .stats-section h3 {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4a5280;
+      margin: 0 0 10px;
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+    }
+    .stat-label { color: #8892b0; }
+    .stat-value { color: #cdd5f3; font-family: monospace; font-weight: 600; }
+    .stat-value.pos  { color: #51cf66; }
+    .stat-value.neg  { color: #ff6b6b; }
+    .stat-value.warn { color: #fcc419; }
+
+    /* Roughness badge */
+    .roughness-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+    .roughness-smooth { background: #1a3a1a; color: #51cf66; border: 1px solid #2a5a2a; }
+    .roughness-medium { background: #3a3010; color: #fcc419; border: 1px solid #5a4a10; }
+    .roughness-jagged { background: #3a1010; color: #ff6b6b; border: 1px solid #5a2020; }
+
+    /* 3D chart (right of sidebar) */
+    .chart-3d img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2a2f45;
+      display: block;
+    }
+
+    /* Full-width charts below */
+    .chart-row {
+      margin-bottom: 16px;
+    }
+    .chart-row img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #2a2f45;
+      display: block;
+    }
+    .chart-label {
+      font-size: 0.75rem;
+      color: #4a5280;
+      margin-bottom: 6px;
+      font-family: monospace;
+    }
+
+    /* Best params table */
+    .best-params-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 20px;
+    }
+
+    .error-box {
+      background: #2a1010;
+      border: 1px solid #5a2020;
+      border-radius: 8px;
+      padding: 16px 20px;
+      color: #ff8080;
+      font-family: monospace;
+      font-size: 0.82rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="nav">
+  <a href="/models">← Models</a>
+</div>
+
+<h1>&#127774; Threshold Surface Study</h1>
+<div class="subtitle">{{ model_folder }}</div>
+
+<!-- Status panel (shown while pending or running) -->
+<div id="status-panel">
+  <div class="spinner" id="spinner" style="display:none"></div>
+  <div id="status-text"><strong>Checking…</strong></div>
+</div>
+
+<!-- Results (shown when done) -->
+<div id="results">
+
+  <div class="results-grid">
+    <!-- Stats sidebar -->
+    <div class="stats-panel" id="stats-panel">
+      <div class="stats-section">
+        <h3>Study overview</h3>
+        <div class="stat-row"><span class="stat-label">Trials</span>         <span class="stat-value" id="s-trials">—</span></div>
+        <div class="stat-row"><span class="stat-label">Yield range</span>    <span class="stat-value" id="s-range">—</span></div>
+        <div class="stat-row"><span class="stat-label">Yield mean ± std</span><span class="stat-value" id="s-mean-std">—</span></div>
+        <div class="stat-row"><span class="stat-label">Profitable trials</span><span class="stat-value" id="s-frac-pos">—</span></div>
+      </div>
+
+      <div class="stats-section">
+        <h3>Edge stability</h3>
+        <div class="stat-row">
+          <span class="stat-label">Local roughness (k=8)</span>
+          <span class="stat-value" id="s-roughness">—</span>
+        </div>
+        <div id="roughness-badge"></div>
+        <div style="font-size:0.72rem; color:#4a5280; margin-top:8px; line-height:1.5">
+          Low (&lt;2%) = smooth / robust edge<br>
+          High (&gt;5%) = jagged / fragile edge
+        </div>
+      </div>
+
+      <div class="stats-section">
+        <h3>Best params</h3>
+        <div class="best-params-grid">
+          <div class="stat-row" style="grid-column:1/-1">
+            <span class="stat-label">THRESHOLD</span>
+            <span class="stat-value" id="b-threshold">—</span>
+          </div>
+          <div class="stat-row" style="grid-column:1/-1">
+            <span class="stat-label">STOPLOSS</span>
+            <span class="stat-value" id="b-stoploss">—</span>
+          </div>
+          <div class="stat-row" style="grid-column:1/-1">
+            <span class="stat-label">TRAILING STOP</span>
+            <span class="stat-value" id="b-trailing">—</span>
+          </div>
+          <div class="stat-row" style="grid-column:1/-1; border-top:1px solid #2a2f45; padding-top:8px; margin-top:4px">
+            <span class="stat-label">Yield at best</span>
+            <span class="stat-value" id="b-yield">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3D scatter -->
+    <div class="chart-3d" id="chart-3d" style="display:none">
+      <div class="chart-label">3D scatter — yield coloured by parameter triplet</div>
+      <img id="img-3d" src="" alt="3D surface">
+    </div>
+  </div>
+
+  <!-- Slice heatmaps -->
+  <div class="chart-row" id="chart-slices" style="display:none">
+    <div class="chart-label">Marginal heatmaps — yield averaged over third axis</div>
+    <img id="img-slices" src="" alt="Slice heatmaps">
+  </div>
+
+  <!-- Histogram -->
+  <div class="chart-row" id="chart-hist" style="display:none">
+    <div class="chart-label">Yield distribution across parameter space</div>
+    <img id="img-hist" src="" alt="Yield histogram">
+  </div>
+
+</div>
+
+<script>
+(function () {
+  const MODEL_FOLDER = {{ model_folder | tojson }};
+  const STATUS_URL   = `/surface-status/${MODEL_FOLDER}`;
+  const RUN_URL      = `/surface-run/${MODEL_FOLDER}`;
+  const IMG_BASE     = `/surface-image/${MODEL_FOLDER}?name=`;
+
+  const statusPanel  = document.getElementById("status-panel");
+  const statusText   = document.getElementById("status-text");
+  const spinner      = document.getElementById("spinner");
+  const resultsEl    = document.getElementById("results");
+
+  let pollTimer = null;
+
+  function setStatus(text, showSpinner) {
+    statusText.innerHTML  = text;
+    spinner.style.display = showSpinner ? "block" : "none";
+  }
+
+  function startPolling() {
+    if (!pollTimer) pollTimer = setInterval(poll, 6000);
+  }
+
+  function showResults(summary, images) {
+    statusPanel.style.display = "none";
+    resultsEl.style.display   = "block";
+
+    // Overview stats
+    document.getElementById("s-trials").textContent =
+      summary.n_trials ?? "—";
+
+    const yMin = summary.yield_min?.toFixed(2);
+    const yMax = summary.yield_max?.toFixed(2);
+    document.getElementById("s-range").textContent =
+      (yMin != null && yMax != null) ? `${yMin}% … +${yMax}%` : "—";
+
+    const yMean = summary.yield_mean?.toFixed(2);
+    const yStd  = summary.yield_std?.toFixed(2);
+    document.getElementById("s-mean-std").textContent =
+      (yMean != null) ? `${yMean >= 0 ? "+" : ""}${yMean}% ± ${yStd}%` : "—";
+
+    const fp = summary.frac_profitable;
+    const fpEl = document.getElementById("s-frac-pos");
+    fpEl.textContent = fp != null ? `${fp.toFixed(1)}%` : "—";
+    fpEl.className   = "stat-value " + (fp >= 55 ? "pos" : fp >= 45 ? "" : "neg");
+
+    // Roughness
+    const r = summary.local_roughness_k8;
+    document.getElementById("s-roughness").textContent = r != null ? `${r.toFixed(2)}%` : "—";
+    const badge = document.getElementById("roughness-badge");
+    if (r != null) {
+      let cls, label;
+      if (r < 2)      { cls = "roughness-smooth"; label = "Smooth — robust edge"; }
+      else if (r < 5) { cls = "roughness-medium"; label = "Moderate roughness"; }
+      else             { cls = "roughness-jagged"; label = "Jagged — fragile edge"; }
+      badge.innerHTML = `<span class="roughness-badge ${cls}">${label}</span>`;
+    }
+
+    // Best params
+    const bp = summary.best_params ?? {};
+    document.getElementById("b-threshold").textContent =
+      bp.THRESHOLD != null ? bp.THRESHOLD.toFixed(5) : "—";
+    document.getElementById("b-stoploss").textContent =
+      bp.STOPLOSS_THRESHOLD != null ? (bp.STOPLOSS_THRESHOLD * 100).toFixed(2) + "%" : "—";
+    document.getElementById("b-trailing").textContent =
+      bp.TRAILING_STOP_THRESHOLD != null ? bp.TRAILING_STOP_THRESHOLD.toFixed(2) : "—";
+    const byEl = document.getElementById("b-yield");
+    const by   = bp.yield_pct;
+    byEl.textContent = by != null ? `${by >= 0 ? "+" : ""}${by.toFixed(2)}%` : "—";
+    byEl.className   = "stat-value " + (by > 0 ? "pos" : by < 0 ? "neg" : "");
+
+    // Images
+    if (images["3d"]) {
+      document.getElementById("img-3d").src = IMG_BASE + "3d";
+      document.getElementById("chart-3d").style.display = "block";
+    }
+    if (images["slices"]) {
+      document.getElementById("img-slices").src = IMG_BASE + "slices";
+      document.getElementById("chart-slices").style.display = "block";
+    }
+    if (images["hist"]) {
+      document.getElementById("img-hist").src = IMG_BASE + "hist";
+      document.getElementById("chart-hist").style.display = "block";
+    }
+  }
+
+  async function autoStart() {
+    setStatus("<strong>Starting surface study…</strong>", true);
+    try {
+      const resp = await fetch(RUN_URL, { method: "POST" });
+      const data = await resp.json();
+      if (resp.ok) {
+        setStatus("<strong>Running…</strong>&ensp;Surface study in progress — this may take a few minutes.", true);
+        startPolling();
+      } else {
+        setStatus(`<span style="color:#ff6b6b">Failed to start: ${data.detail ?? resp.statusText}</span>`, false);
+      }
+    } catch (e) {
+      setStatus(`<span style="color:#ff6b6b">Network error: ${e}</span>`, false);
+    }
+  }
+
+  async function poll() {
+    try {
+      const resp = await fetch(STATUS_URL);
+      const data = await resp.json();
+
+      if (data.status === "done") {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        showResults(data.summary, data.images ?? {});
+      } else if (data.status === "running") {
+        setStatus("<strong>Running…</strong>&ensp;Surface study in progress — this may take a few minutes.", true);
+        startPolling();
+      } else {
+        // pending — auto-start
+        clearInterval(pollTimer);
+        pollTimer = null;
+        await autoStart();
+      }
+    } catch (e) {
+      setStatus(`<span style="color:#ff6b6b">Network error: ${e}</span>`, false);
+    }
+  }
+
+  // Kick off on page load
+  poll();
+
+})();
+</script>
+
+</body>
+</html>

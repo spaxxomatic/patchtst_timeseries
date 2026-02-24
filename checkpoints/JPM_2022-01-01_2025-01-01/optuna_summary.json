@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "JPM",
+  "tickers": [
+    "JPM"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.8875,
+  "best_params": {
+    "input_size": 110,
+    "patch_len": 8,
+    "stride": 4,
+    "encoder_layers": 2,
+    "n_heads": 8,
+    "hidden_size": 64,
+    "linear_hidden_size": 256,
+    "dropout": 0.13674626445151294,
+    "learning_rate": 0.0001567888791467114
+  },
+  "runtime": 1763,
+  "n_completed_trials": 32,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.001971,
+    "p50": 0.005702,
+    "p75": 0.008456
+  }
+}

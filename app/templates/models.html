@@ -96,8 +96,8 @@
     }
     td:first-child { text-align: left; font-family: monospace; font-size: 0.78rem; color: #8892b0; }
 
-    /* Chart button */
-    .btn-chart {
+    /* Chart / action buttons */
+    .btn-chart, .btn-surface, .btn-delete {
       background: #1e2440;
       border: 1px solid #2a3060;
       color: #7090d0;
@@ -107,12 +107,28 @@
       cursor: pointer;
       transition: all 0.15s;
     }
-    .btn-chart:hover {
+    .btn-chart:hover, .btn-surface:hover {
       background: #2a3a60;
       color: #a0c0ff;
       border-color: #3b5bdb;
     }
     .btn-chart.loading { opacity: 0.5; cursor: wait; }
+
+    .btn-surface {
+      border-color: #2a4060;
+      color: #60a0d0;
+    }
+
+    .btn-delete {
+      background: #2a1a1a;
+      border-color: #5a2020;
+      color: #c06060;
+    }
+    .btn-delete:hover {
+      background: #4a1a1a;
+      color: #ff8080;
+      border-color: #993333;
+    }
 
     /* Colour coding */
     .pos     { color: #51cf66; }
@@ -197,7 +213,8 @@
         <th colspan="4">Model</th>
         <th colspan="1">Result</th>
         <th colspan="7">Best Params</th>
-        <th colspan="2">Charts</th>
+        <th colspan="3">Charts</th>
+        <th colspan="1">Actions</th>
       </tr>
       <tr>
         <th data-col="0" data-type="str">Folder</th>
@@ -214,6 +231,8 @@
         <th data-col="11" data-type="num">LR</th>
         <th>CV</th>
         <th>Train</th>
+        <th title="Inspect threshold surface">Surface</th>
+        <th style="cursor:default">Del</th>
       </tr>
     </thead>
     <tbody>
@@ -246,6 +265,17 @@
           {% else %}
           <span class="neutral" style="font-size:0.75rem">—</span>
           {% endif %}
+        </td>
+        <td>
+          <button class="btn-surface"
+                  title="Inspect threshold surface"
+                  onclick="window.open('/surface/{{ r.folder }}','_blank')">&#127774;</button>
+        </td>
+        <td>
+          <button class="btn-delete"
+                  title="Move to checkpoints_failures/"
+                  data-folder="{{ r.folder }}"
+                  onclick="deleteModel(this)">&#128465;</button>
         </td>
       </tr>
       {% endfor %}
@@ -351,6 +381,29 @@
       if (e.key === "Escape") closeModal();
     });
   })();
+
+  async function deleteModel(btn) {
+    const folder = btn.dataset.folder;
+    if (!confirm(`Move "${folder}" to checkpoints_failures/?\n\nThis removes it from the model table.`)) return;
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+      const resp = await fetch(`/delete-model/${folder}`, { method: "POST" });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert("Error: " + (err.detail || resp.statusText));
+        btn.disabled = false;
+        btn.innerHTML = "&#128465;";
+        return;
+      }
+      // Remove the row from the table
+      btn.closest("tr").remove();
+    } catch (e) {
+      alert("Request failed: " + e);
+      btn.disabled = false;
+      btn.innerHTML = "&#128465;";
+    }
+  }
 </script>
 
 </body>

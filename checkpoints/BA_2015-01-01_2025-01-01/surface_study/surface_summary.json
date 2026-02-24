@@ -1,0 +1,15 @@
+{
+  "n_trials": 300,
+  "yield_mean": -19.0811,
+  "yield_std": 10.2907,
+  "yield_min": -44.4598,
+  "yield_max": 9.1053,
+  "frac_profitable": 5.33,
+  "local_roughness_k8": 6.767,
+  "best_params": {
+    "THRESHOLD": 0.00192,
+    "STOPLOSS_THRESHOLD": -0.1882,
+    "TRAILING_STOP_THRESHOLD": 0.9048,
+    "yield_pct": 9.1053
+  }
+}

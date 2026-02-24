@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "PG",
+  "tickers": [
+    "PG"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.833333,
+  "best_params": {
+    "input_size": 100,
+    "patch_len": 16,
+    "stride": 2,
+    "encoder_layers": 3,
+    "n_heads": 2,
+    "hidden_size": 32,
+    "linear_hidden_size": 128,
+    "dropout": 0.10410370338153453,
+    "learning_rate": 0.0005937133563756867
+  },
+  "runtime": 1970,
+  "n_completed_trials": 34,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.001286,
+    "p50": 0.003365,
+    "p75": 0.006668
+  }
+}

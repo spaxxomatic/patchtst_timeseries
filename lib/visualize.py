@@ -315,8 +315,8 @@ def visualize_from_folder(folder: str | Path) -> None:
     from lib.tradeparams import TradeSimParams
     params = TradeSimParams.load_from_folder(Path(folder))
     print(f"Loaded params from {params.logfolder}")
-    fig = plot_sim_results(params)
-    params.store_chart_results(fig)
+    #fig = plot_sim_results(params)
+    #params.store_chart_results(fig)
     print_sim_stats(params)
 
 

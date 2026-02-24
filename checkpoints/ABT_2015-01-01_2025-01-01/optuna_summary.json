@@ -1,0 +1,35 @@
+{
+  "traded_symbol": "ABT",
+  "tickers": [
+    "ABT",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.75,
+  "best_params": {
+    "input_size": 90,
+    "patch_len": 4,
+    "stride": 2,
+    "encoder_layers": 5,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 128,
+    "dropout": 0.07132344289770123,
+    "learning_rate": 0.0005570535486359261
+  },
+  "runtime": 2101,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50
+  }
+}

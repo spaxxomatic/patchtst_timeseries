@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "HD",
+  "tickers": [
+    "HD"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.75,
+  "best_params": {
+    "input_size": 30,
+    "patch_len": 4,
+    "stride": 4,
+    "encoder_layers": 1,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 64,
+    "dropout": 0.10238307967412656,
+    "learning_rate": 0.0006207512157189373
+  },
+  "runtime": 1715,
+  "n_completed_trials": 22,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.002509,
+    "p50": 0.004639,
+    "p75": 0.007509
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "UNH",
+  "tickers": [
+    "UNH"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 1.0,
+  "best_params": {
+    "input_size": 80,
+    "patch_len": 4,
+    "stride": 2,
+    "encoder_layers": 2,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 512,
+    "dropout": 0.16404771339854965,
+    "learning_rate": 0.00019680990721607038
+  },
+  "runtime": 2281,
+  "n_completed_trials": 42,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.002908,
+    "p50": 0.007615,
+    "p75": 0.012797
+  }
+}

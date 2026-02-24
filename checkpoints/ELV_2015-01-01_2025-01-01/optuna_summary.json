@@ -1,0 +1,35 @@
+{
+  "traded_symbol": "ELV",
+  "tickers": [
+    "ELV",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2015-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.625,
+  "best_params": {
+    "input_size": 70,
+    "patch_len": 4,
+    "stride": 4,
+    "encoder_layers": 1,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 128,
+    "dropout": 0.002774602118650271,
+    "learning_rate": 0.00014128716882742364
+  },
+  "runtime": 1942,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50
+  }
+}

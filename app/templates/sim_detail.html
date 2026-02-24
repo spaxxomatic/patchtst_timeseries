@@ -316,7 +316,48 @@ function buildChart(data) {
   // ── Traces ──────────────────────────────────────────────────────────
   const traces = [
 
-    // ── ROW 1 · Portfolio PnL ─────────────────────────────────────────
+    // ── Main panel · Price (left y) ───────────────────────────────────
+
+    {   // Candlestick
+      name: symbol, showlegend: true,
+      x: ohlcv.map(r => r.date),
+      open:  ohlcv.map(r => r.open),
+      high:  ohlcv.map(r => r.high),
+      low:   ohlcv.map(r => r.low),
+      close: ohlcv.map(r => r.close),
+      type: 'candlestick',
+      increasing: { line: { color: C.long },  fillcolor: C.long  },
+      decreasing: { line: { color: C.short }, fillcolor: C.short },
+      xaxis: 'x', yaxis: 'y',
+    },
+    {   // CI price band — lower bound (invisible reference line)
+      name: 'CI lo (price)', showlegend: false,
+      x: dates, y: ciLoPriceY,
+      type: 'scatter', mode: 'lines',
+      line: { color: 'transparent' },
+      hoverinfo: 'skip',
+      xaxis: 'x', yaxis: 'y',
+    },
+    {   // CI price band — upper bound (fills to previous = lower)
+      name: '80% CI (price)',
+      x: dates, y: ciHiPriceY,
+      type: 'scatter', mode: 'lines',
+      fill: 'tonexty', fillcolor: 'rgba(255,200,80,0.07)',
+      line: { color: 'rgba(255,200,80,0.2)', width: 1 },
+      hovertemplate: 'CI hi (price): %{y:.2f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y',
+    },
+    {   // Predicted next-close scatter (toggle-able via legend)
+      name: 'Pred. Close', visible: 'legendonly',
+      x: dates, y: predCloseY,
+      type: 'scatter', mode: 'markers',
+      marker: { symbol: 'line-ew-open', size: 10, color: C.pred,
+                line: { color: C.pred, width: 2.5 } },
+      hovertemplate: 'Pred. Close: %{y:.2f}<extra></extra>',
+      xaxis: 'x', yaxis: 'y',
+    },
+
+    // ── Main panel · Portfolio (right y, overlaid) ────────────────────
 
     {   // B&H baseline
       name: 'Buy & Hold', legendgroup: 'pnl', legendgrouptitle: { text: 'Portfolio' },
@@ -324,7 +365,7 @@ function buildChart(data) {
       type: 'scatter', mode: 'lines',
       line: { color: C.bh, dash: 'dash', width: 1.5 },
       hovertemplate: '<b>B&H</b> $%{y:,.0f}<extra></extra>',
-      xaxis: 'x', yaxis: 'y',
+      xaxis: 'x', yaxis: 'y2',
     },
     {   // Strategy equity curve
       name: 'Strategy', legendgroup: 'pnl',
@@ -332,7 +373,6 @@ function buildChart(data) {
       customdata: stratCD,
       type: 'scatter', mode: 'lines',
       line: { color: C.strat, width: 2 },
-      fill: 'tozeroy', fillcolor: 'rgba(77,171,247,0.04)',
       hovertemplate:
         '<b>%{x}</b><br>' +
         'Portfolio: <b>$%{customdata[0]:,.0f}</b><br>' +
@@ -340,7 +380,7 @@ function buildChart(data) {
         'Signal: %{customdata[2]}<br>' +
         'Pred: %{customdata[3]}%' +
         '%{customdata[4]}<extra></extra>',
-      xaxis: 'x', yaxis: 'y',
+      xaxis: 'x', yaxis: 'y2',
     },
     {   // Long entries (triangle-up)
       name: 'Long Entry', legendgroup: 'markers', legendgrouptitle: { text: 'Trades' },
@@ -350,7 +390,7 @@ function buildChart(data) {
       marker: { symbol: 'triangle-up', size: 12, color: C.long,
                 line: { color: C.longFg, width: 1.5 } },
       hovertemplate: '<b>▲ Long Entry</b><br>%{x}<br>$%{y:,.0f}<extra></extra>',
-      xaxis: 'x', yaxis: 'y',
+      xaxis: 'x', yaxis: 'y2',
     },
     {   // Short entries (triangle-down)
       name: 'Short Entry', legendgroup: 'markers',
@@ -360,7 +400,7 @@ function buildChart(data) {
       marker: { symbol: 'triangle-down', size: 12, color: C.short,
                 line: { color: C.shortFg, width: 1.5 } },
       hovertemplate: '<b>▼ Short Entry</b><br>%{x}<br>$%{y:,.0f}<extra></extra>',
-      xaxis: 'x', yaxis: 'y',
+      xaxis: 'x', yaxis: 'y2',
     },
     {   // Exit markers (coloured by P&L)
       name: 'Exit', legendgroup: 'markers',
@@ -376,70 +416,12 @@ function buildChart(data) {
       hovertemplate:
         '<b>● Exit</b><br>%{x}<br>$%{y:,.0f}<br>' +
         'P&L: %{customdata[2]}%<extra></extra>',
-      xaxis: 'x', yaxis: 'y',
-    },
-
-    // ── ROW 2 · Price + positions ─────────────────────────────────────
-
-    {   // Candlestick
-      name: symbol, showlegend: true,
-      x: ohlcv.map(r => r.date),
-      open:  ohlcv.map(r => r.open),
-      high:  ohlcv.map(r => r.high),
-      low:   ohlcv.map(r => r.low),
-      close: ohlcv.map(r => r.close),
-      type: 'candlestick',
-      increasing: { line: { color: C.long },  fillcolor: C.long  },
-      decreasing: { line: { color: C.short }, fillcolor: C.short },
-      xaxis: 'x', yaxis: 'y2',
-    },
-    {   // CI price band — lower bound (invisible reference line)
-      name: 'CI lo (price)', showlegend: false,
-      x: dates, y: ciLoPriceY,
-      type: 'scatter', mode: 'lines',
-      line: { color: 'transparent' },
-      hoverinfo: 'skip',
-      xaxis: 'x', yaxis: 'y2',
-    },
-    {   // CI price band — upper bound (fills to previous = lower)
-      name: '80% CI (price)',
-      x: dates, y: ciHiPriceY,
-      type: 'scatter', mode: 'lines',
-      fill: 'tonexty', fillcolor: 'rgba(255,200,80,0.07)',
-      line: { color: 'rgba(255,200,80,0.2)', width: 1 },
-      hovertemplate: 'CI hi (price): %{y:.2f}<extra></extra>',
-      xaxis: 'x', yaxis: 'y2',
-    },
-    {   // Predicted next-close scatter (toggle-able via legend)
-      name: 'Pred. Close', visible: 'legendonly',
-      x: dates, y: predCloseY,
-      type: 'scatter', mode: 'markers',
-      marker: { symbol: 'line-ew-open', size: 10, color: C.pred,
-                line: { color: C.pred, width: 2.5 } },
-      hovertemplate: 'Pred. Close: %{y:.2f}<extra></extra>',
       xaxis: 'x', yaxis: 'y2',
     },
 
-    // ── ROW 3 · Prediction momentum ──────────────────────────────────
+    // ── Bottom panel · Prediction momentum ───────────────────────────
 
-    {   // CI momentum band — lo (invisible reference)
-      name: 'CI lo (mom)', showlegend: false,
-      x: dates, y: ciLo,
-      type: 'scatter', mode: 'lines',
-      line: { color: 'transparent' },
-      hoverinfo: 'skip',
-      xaxis: 'x', yaxis: 'y3',
-    },
-    {   // CI momentum band — hi (fills to lo)
-      name: '80% CI',
-      x: dates, y: ciHi,
-      type: 'scatter', mode: 'lines',
-      fill: 'tonexty', fillcolor: C.ci,
-      line: { color: C.ciLine, width: 0.5 },
-      hovertemplate: 'CI hi: %{y:.5f}<extra></extra>',
-      xaxis: 'x', yaxis: 'y3',
-    },
-    {   // Prediction momentum bars
+    {   // Prediction momentum bars (no CI bands)
       name: 'Pred. Momentum',
       x: dates, y: pred,
       customdata: predCD,
@@ -454,7 +436,6 @@ function buildChart(data) {
       hovertemplate:
         '<b>%{x}</b><br>' +
         'Pred: %{customdata[0]}%<br>' +
-        'CI: [%{customdata[1]}%, %{customdata[2]}%]<br>' +
         'Signal: %{customdata[3]}%{customdata[4]}<extra></extra>',
       xaxis: 'x', yaxis: 'y3',
     },
@@ -465,9 +446,8 @@ function buildChart(data) {
 
   // ── Annotations: sub-panel labels ────────────────────────────────────
   const annotations = [
-    ann(0.005, 1.005, 'Portfolio vs Buy & Hold'),
-    ann(0.005, 0.645, `${symbol} — Price & CI`),
-    ann(0.005, 0.255, 'Prediction Momentum + 80% CI'),
+    ann(0.005, 1.005, `${symbol} — Price & Portfolio`),
+    ann(0.005, 0.255, 'Prediction Momentum'),
   ];
 
   // ── Layout ──────────────────────────────────────────────────────────
@@ -477,7 +457,7 @@ function buildChart(data) {
     plot_bgcolor:  C.bg,
     font: { color: C.txt, family: 'system-ui, sans-serif', size: 11 },
     height: h,
-    margin: { t: 24, b: 36, l: 68, r: 14 },
+    margin: { t: 24, b: 36, l: 68, r: 68 },
 
     // All traces share this x-axis → pan/zoom is synchronised across all rows
     xaxis: {
@@ -487,22 +467,26 @@ function buildChart(data) {
       tickfont: { size: 10, color: C.txt },
       rangeslider: { visible: false },
       showspikes: true, spikecolor: '#3a4060', spikewidth: 1, spikedash: 'dot',
+      rangebreaks: [{ bounds: ['sat', 'mon'] }],
     },
 
-    yaxis: {          // ── Row 1: portfolio
-      domain: [0.70, 1.00],
-      title: { text: 'Portfolio ($)', standoff: 5, font: { size: 10 } },
-      gridcolor: C.grid, linecolor: C.border,
-      tickformat: '$,.0f', tickfont: { size: 10 },
-      zerolinecolor: '#3a4060',
-    },
-    yaxis2: {         // ── Row 2: price
-      domain: [0.30, 0.66],
+    yaxis: {          // ── Main panel: price (left axis)
+      domain: [0.30, 1.00],
       title: { text: 'Price', standoff: 5, font: { size: 10 } },
       gridcolor: C.grid, linecolor: C.border,
       tickformat: '.2f', tickfont: { size: 10 },
     },
-    yaxis3: {         // ── Row 3: prediction
+    yaxis2: {         // ── Main panel: portfolio (right axis, overlaid)
+      overlaying: 'y',
+      side: 'right',
+      title: { text: 'Portfolio ($)', standoff: 5, font: { size: 10 } },
+      gridcolor: 'transparent',
+      linecolor: C.border,
+      tickformat: '$,.0f', tickfont: { size: 10 },
+      showgrid: false,
+      zerolinecolor: '#3a4060',
+    },
+    yaxis3: {         // ── Bottom panel: prediction
       domain: [0.00, 0.26],
       title: { text: 'Pred (log-return)', standoff: 5, font: { size: 10 } },
       gridcolor: C.grid, linecolor: C.border,
@@ -531,6 +515,7 @@ function buildChart(data) {
 
   const config = {
     responsive: true,
+    scrollZoom: true,
     displaylogo: false,
     modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
     toImageButtonOptions: {
@@ -579,7 +564,7 @@ function posRect(x0, x1, dir) {
   return {
     type: 'rect', layer: 'below',
     x0, x1, y0: 0, y1: 1,
-    xref: 'x', yref: 'y2 domain',
+    xref: 'x', yref: 'y domain',
     fillcolor: dir === 1
       ? 'rgba(81,207,102,0.065)'
       : 'rgba(255,107,107,0.065)',

@@ -11,10 +11,12 @@ import pandas as pd
 import numpy as np
 from neuralforecast import NeuralForecast
 import logging
+import warnings
 import os
 from lib.visualize import visualize_from_folder
 
 SIGNAL_TRIGGER_STOPLOSS = -2
+SIGNAL_TRIGGER_TP       =  2   # trailing take-profit exit
 _FALLBACK_INPUT_LEN = 130
 
 def _load_input_size(model_path: str) -> int:
@@ -71,10 +73,12 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
     current_trade_direction = 0
     position_return = 0
     entry_price = None
+    max_profit = 0.0          # peak position_return since entry (for trailing stop)
     MODEL_INPUT_LEN = _load_input_size(tradeSimParams.model_path)
     THRESHOLD = _load_calibrated_threshold(
-        tradeSimParams.model_path, percentile='p50', fallback=tradeSimParams.THRESHOLD
+        tradeSimParams.model_path, percentile='p25', fallback=tradeSimParams.THRESHOLD
     )
+    THRESHOLD = tradeSimParams.THRESHOLD
     print("Loading data")
     simdata:TradeSimulData = TradeSimulData(tradeSimParams)
 
@@ -87,6 +91,14 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     logging.getLogger("neuralforecast").setLevel(logging.ERROR)
     logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
+    warnings.filterwarnings('ignore', module=r'pytorch_lightning\..*')
+    warnings.filterwarnings('ignore', module=r'lightning\..*')
+    for m in nf.models:
+        m.trainer_kwargs.update({
+            'enable_progress_bar': False,
+            'enable_model_summary': False,
+            'logger': False,
+        })
 
     predict_ticker = tradeSimParams.traded_symbol
     df_full = simdata.get_full_period_data()
@@ -149,19 +161,19 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
         avg_hi_80  = mean([p['PatchTST-hi-80']  for p in predictions])
 
         signal = 0
-        if trend_pred > THRESHOLD:
+        if trend_pred > float(THRESHOLD):
             signal = 1
-        elif trend_pred < -THRESHOLD:
+        elif trend_pred < -float(THRESHOLD):
             signal = -1
 
-        return signal, trend_pred, avg_lo_80, avg_hi_80
+        return signal, trend_pred
     
     def vix_gate(today):
         vix_o = vix_open.loc[today]
         vix_c = vix_close.loc[today]
         if vix_c > 25.0: 
             return 0 
-        if (vix_c/vix_o) > 1.1: #10 pct jump today
+        if (vix_c/vix_o) > 1.15: #15 pct jump today
             return 0
         #if (vix_c/vix_o) > 0.9: #solid drop in vix
         #    return False               
@@ -181,14 +193,18 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
 
     # Log-Header
     with open(tradeSimParams.sim_log_file, 'w') as f_sim_log_file:
-        f_sim_log_file.write("date,pred_momentum,ci_lo_80,ci_hi_80,signal,in_market,trade_return,portfolio_value,position_return,vix_gate\n")
+        f_sim_log_file.write("date,pred_momentum,signal,in_market,trade_return,portfolio_value,position_return,vix_gate\n")
+    
+    TP_THRESHOLD = 4*(abs(tradeSimParams.STOPLOSS_THRESHOLD))
     
     for i, today in enumerate(test_dates):
         # --- Build input window: last MODEL_INPUT_LEN rows per unique_id up to today ---
         
         forecast = get_forecast(today)
-        signal, prediction, ci_lo_80, ci_hi_80 = get_signal(forecast)
-        vix_gate_signal = vix_gate(today)
+        signal, prediction = get_signal(forecast)
+        
+        #vix_gate_signal = vix_gate(today)
+        vix_gate_signal = 1
         if vix_gate_signal < 1:            
            signal = 0 # don't trade
         
@@ -198,12 +214,26 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
         if current_trade_direction != 0:
             close_today = traded_ticker_close.loc[today]
             position_return = current_trade_direction * (close_today - entry_price) / entry_price
-            if vix_gate_signal < 1:            
-                signal = SIGNAL_TRIGGER_STOPLOSS # unconditional exit
+
+            # ── Trailing stop ────────────────────────────────────────────────
+            # Track the peak profit reached since entry.
+            if position_return > max_profit:
+                max_profit = position_return
+            ts_thresh = tradeSimParams.TRAILING_STOP_THRESHOLD
+            if position_return > TP_THRESHOLD: #take profit 
+                signal = SIGNAL_TRIGGER_TP
+            elif ts_thresh and max_profit > SIGNAL_TRIGGER_TP/2 and position_return / max_profit < ts_thresh:
+                # Price crossed the trailing-stop level intraday — assume we
+                # closed there.  Lock in return = max_profit * threshold.
+                position_return = max_profit * ts_thresh
+                signal = SIGNAL_TRIGGER_TP
+            elif vix_gate_signal < 1:
+                signal = SIGNAL_TRIGGER_STOPLOSS  # unconditional risk-off exit
             if position_return < tradeSimParams.STOPLOSS_THRESHOLD:
                 signal = SIGNAL_TRIGGER_STOPLOSS
         else:
             position_return = 0
+            max_profit = 0.0
 
         this_position_return = position_return
         day_current_signal   = signal
@@ -220,6 +250,7 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
                     position_return = 0
                     signal = 0
                     current_trade_direction = 0
+                    max_profit = 0.0          # reset peak for the next trade
                 portfolio_value *= (1 - FEE) # substract fee
                 portfolio_value_at_entry = portfolio_value  # keep snapshot current after every close
                 if signal != 0 and i + 1 < len(test_dates):
@@ -228,16 +259,18 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
                     entry_price = traded_ticker_open.loc[next_day]
                     #entry_price = traded_ticker_close.loc[next_day]
                     current_trade_direction = signal
+                    max_profit = 0.0          # fresh peak tracking for new position
                 else:
                     entry_price = None
 
-        ci_str = f"CI=[{ci_lo_80:+.5f},{ci_hi_80:+.5f}] " if ci_lo_80 is not None else ""
-        print(f"{today.date()} | Pred: {prediction:.5f} | {ci_str}Signal: {day_current_signal} | "
-            f"Pos: {current_trade_direction} | Return: {trade_return:+.4f} | Port: {portfolio_value:.2f}")
-        lo_str = f"{ci_lo_80}" if ci_lo_80 is not None else ""
-        hi_str = f"{ci_hi_80}" if ci_hi_80 is not None else ""
+        #ci_str = f"CI=[{ci_lo_80:+.5f},{ci_hi_80:+.5f}] " if ci_lo_80 is not None else ""
+        tp_str = f"MaxP={max_profit:+.5f} " if day_current_pos != 0 else ""
+        print(f"{today.date()} | Pred: {prediction:.5f} | Signal: {day_current_signal} | "
+            f"Pos: {current_trade_direction} | {tp_str}Return: {trade_return:+.4f} | Port: {portfolio_value:.2f}")
+        #lo_str = f"{ci_lo_80}" if ci_lo_80 is not None else ""
+        #hi_str = f"{ci_hi_80}" if ci_hi_80 is not None else ""
         with open(tradeSimParams.sim_log_file, 'a') as f:
-            f.write(f"{today.date()},{prediction},{lo_str},{hi_str},{day_current_signal},{day_current_pos},{trade_return},{portfolio_value},{this_position_return},{vix_gate_signal}\n")
+            f.write(f"{today.date()},{prediction},{day_current_signal},{day_current_pos},{trade_return},{portfolio_value},{this_position_return},{vix_gate_signal}\n")
 
     # Close last open position — portfolio_value already reflects the last
     # close price from the final loop iteration; only the exit fee is missing.
@@ -259,17 +292,17 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
 if __name__ == "__main__":
     
     for signal_horizon_step in range(1,8):
-        traded_symbol = 'AAPL'
+        traded_symbol = '^RUT'
         params = TradeSimParams(
-            THRESHOLD=0.001,
-            STOPLOSS_THRESHOLD= -0.002,
-            TRAILING_STOP_THRESHOLD= 0.3,        
+            THRESHOLD=0.004,
+            STOPLOSS_THRESHOLD= -0.15,
+            TRAILING_STOP_THRESHOLD= 0.8,        
             FEE= 0.0005,
             traded_symbol = traded_symbol,
             tickers = [traded_symbol, '^SPX', '^VIX'],
             load_data_from_date="2015-01-01",
             trading_start="2025-01-01",
-            trading_end="2025-12-01",
+            trading_end="2025-12-15",
             signal_horizon_steps=signal_horizon_step,
             # model_path auto-generated as checkpoints/KO_2020-01-01_2025-01-01
             # override here if needed:

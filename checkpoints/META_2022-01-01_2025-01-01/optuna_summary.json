@@ -1,0 +1,39 @@
+{
+  "traded_symbol": "META",
+  "tickers": [
+    "META"
+  ],
+  "load_data_from": "2022-01-01",
+  "trading_start": "2025-01-01",
+  "best_hit_rate": 0.875,
+  "best_params": {
+    "input_size": 70,
+    "patch_len": 8,
+    "stride": 4,
+    "encoder_layers": 2,
+    "n_heads": 2,
+    "hidden_size": 128,
+    "linear_hidden_size": 32,
+    "dropout": 0.09884851491499805,
+    "learning_rate": 0.00048017896835150884
+  },
+  "runtime": 1910,
+  "n_completed_trials": 35,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "threshold_calibration": {
+    "p25": 0.002692,
+    "p50": 0.005811,
+    "p75": 0.010814
+  }
+}

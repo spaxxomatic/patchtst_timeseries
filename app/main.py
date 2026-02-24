@@ -7,6 +7,7 @@ Run from project root:
 
 import json
 import os
+import shutil
 from fastapi import FastAPI, Request, Query, HTTPException, BackgroundTasks
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -15,6 +16,9 @@ import uvicorn
 from app.reports import load_reports, get_symbols, TRADESIMLOG, PROJECT_ROOT
 from app.model_reports import load_model_reports, CHECKPOINTS
 from simulator import _SIM_GENERATED_FILES, _SIM_LOCK_FILE
+
+CHECKPOINTS_FAILURES = PROJECT_ROOT / "checkpoints_failures"
+_SURFACE_LOCK = "surface.lock"
 
 app = FastAPI(title="TradeSimulator Dashboard")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -231,18 +235,21 @@ def _detect_trades(sim_rows: list[dict]) -> list[dict]:
     for i, row in enumerate(sim_rows):
         im = row["in_market"]
         if prev_im == 0 and im != 0:
+            # The signal fired on the previous row; in_market flips one row late
+            # because the simulator captures day_current_pos before signal processing.
+            sig = sim_rows[i - 1] if i > 0 else row
             current = {
-                "entry_date":      row["date"],
+                "entry_date":      sig["date"],
                 "direction":       im,
-                "entry_pred":      row["pred_momentum"],
-                "entry_ci_lo":     row["ci_lo_80"],
-                "entry_ci_hi":     row["ci_hi_80"],
-                "entry_portfolio": row["portfolio_value"],
+                "entry_pred":      sig["pred_momentum"],
+                "entry_ci_lo":     sig.get("ci_lo_80"),
+                "entry_ci_hi":     sig.get("ci_hi_80"),
+                "entry_portfolio": sig["portfolio_value"],
             }
         elif prev_im != 0 and im == 0 and current is not None:
             prev = sim_rows[i - 1]
             current.update({
-                "exit_date":      row["date"],
+                "exit_date":      prev["date"],   # same shift: exit signal was on prev row
                 "final_return":   prev.get("position_return", 0.0),
                 "exit_portfolio": prev.get("portfolio_value"),
                 "is_stoploss":    prev.get("signal") == -2,
@@ -272,6 +279,114 @@ async def rerun_sim(run_folder: str, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=409, detail="Simulation already running")
     background_tasks.add_task(_do_rerun, run_folder)
     return JSONResponse({"status": "started"})
+
+
+# ─── Model delete ─────────────────────────────────────────────────────────────
+
+@app.post("/delete-model/{model_folder:path}")
+async def delete_model(model_folder: str):
+    """Move a checkpoint folder to checkpoints_failures/."""
+    src = CHECKPOINTS / model_folder
+    if not src.exists():
+        raise HTTPException(status_code=404, detail="Checkpoint folder not found")
+    dest = CHECKPOINTS_FAILURES / model_folder
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(src), str(dest))
+    return JSONResponse({"status": "moved", "dest": str(dest)})
+
+
+# ─── Threshold surface study ──────────────────────────────────────────────────
+
+def _find_tradesim_folder_for_model(model_folder: str) -> Path | None:
+    """Return the most-recent tradesimlog folder that used this model."""
+    matches = []
+    for folder in TRADESIMLOG.iterdir():
+        pf = folder / "tradesimparams.json"
+        if not pf.exists():
+            continue
+        try:
+            params = json.loads(pf.read_text())
+            if model_folder in params.get("model_path", ""):
+                matches.append(folder)
+        except Exception:
+            pass
+    return max(matches, key=lambda p: p.name) if matches else None
+
+
+@app.get("/surface/{model_folder:path}", response_class=HTMLResponse)
+async def surface_page(request: Request, model_folder: str):
+    return templates.TemplateResponse("surface.html", {
+        "request":      request,
+        "model_folder": model_folder,
+    })
+
+
+@app.get("/surface-status/{model_folder:path}")
+async def surface_status(model_folder: str):
+    study_dir    = CHECKPOINTS / model_folder / "surface_study"
+    lock_file    = study_dir / _SURFACE_LOCK
+    summary_file = study_dir / "surface_summary.json"
+
+    if lock_file.exists():
+        return JSONResponse({"status": "running"})
+    if summary_file.exists():
+        summary = json.loads(summary_file.read_text())
+        images  = {
+            name: (study_dir / f"surface_{name}.png").exists()
+            for name in ("3d", "slices", "hist")
+        }
+        return JSONResponse({"status": "done", "summary": summary, "images": images})
+    return JSONResponse({"status": "pending"})
+
+
+def _do_surface_run(model_folder: str) -> None:
+    from thresh_surface import run_surface_study
+    from lib.tradeparams import TradeSimParams
+
+    os.chdir(PROJECT_ROOT)
+    study_dir = CHECKPOINTS / model_folder / "surface_study"
+    lock_file = study_dir / _SURFACE_LOCK
+    try:
+        sim_folder = _find_tradesim_folder_for_model(model_folder)
+        if sim_folder is None:
+            raise RuntimeError(f"No tradesimlog entry found for model {model_folder}")
+
+        params = TradeSimParams.load_from_folder(sim_folder)
+        if not hasattr(params, "model_storage_folder") or params.model_storage_folder is None:
+            params.model_storage_folder = Path(params.model_path) / "model"
+
+        run_surface_study(params, n_trials=300, output_dir=study_dir)
+    except Exception as exc:
+        # Persist error message so the UI can surface it
+        (study_dir / "surface_error.txt").write_text(str(exc))
+    finally:
+        lock_file.unlink(missing_ok=True)
+
+
+@app.post("/surface-run/{model_folder:path}")
+async def surface_run(model_folder: str, background_tasks: BackgroundTasks):
+    study_dir = CHECKPOINTS / model_folder / "surface_study"
+    lock_file = study_dir / _SURFACE_LOCK
+    if lock_file.exists():
+        return JSONResponse({"status": "already_running"})
+    if (study_dir / "surface_summary.json").exists():
+        return JSONResponse({"status": "already_done"})
+    sim_folder = _find_tradesim_folder_for_model(model_folder)
+    if sim_folder is None:
+        raise HTTPException(status_code=422, detail="No tradesimlog run found for this model — run a simulation first")
+    study_dir.mkdir(parents=True, exist_ok=True)
+    lock_file.touch()
+    background_tasks.add_task(_do_surface_run, model_folder)
+    return JSONResponse({"status": "started"})
+
+
+@app.get("/surface-image/{model_folder:path}")
+async def surface_image(model_folder: str, name: str = Query(...)):
+    """Serve a surface study PNG. name ∈ {3d, slices, hist}."""
+    img = CHECKPOINTS / model_folder / "surface_study" / f"surface_{name}.png"
+    if not img.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    return FileResponse(img, media_type="image/png")
 
 
 if __name__ == "__main__":
