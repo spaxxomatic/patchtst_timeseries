@@ -1,0 +1,1 @@
+prediction accuracy looks impressive in backtest, bnut training curves are strage.

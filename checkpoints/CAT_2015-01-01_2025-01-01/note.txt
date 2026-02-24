@@ -1,0 +1,1 @@
+constant acc > 50% for all regimes. Keep threshold <0.001

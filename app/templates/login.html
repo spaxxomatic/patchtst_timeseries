@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — TradeSimulator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      background: #0b0e17;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: system-ui, -apple-system, sans-serif;
+      color: #cdd5f3;
+    }
+
+    .card {
+      background: #141720;
+      border: 1px solid #1e2440;
+      border-radius: 12px;
+      padding: 40px 44px;
+      width: 360px;
+      max-width: 96vw;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #74c0fc;
+      margin-bottom: 6px;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      font-size: 0.78rem;
+      color: #4a5280;
+      margin-bottom: 28px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #6272a4;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2a3050;
+      border-radius: 6px;
+      color: #cdd5f3;
+      padding: 10px 12px;
+      font-size: 0.92rem;
+      outline: none;
+      transition: border-color 0.15s;
+      margin-bottom: 18px;
+    }
+
+    input[type="text"]:focus,
+    input[type="password"]:focus {
+      border-color: #3b5bdb;
+    }
+
+    .btn-login {
+      width: 100%;
+      padding: 11px;
+      background: #1a3a6a;
+      border: 1px solid #3b5bdb;
+      border-radius: 6px;
+      color: #74c0fc;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.15s;
+      margin-top: 4px;
+    }
+
+    .btn-login:hover { background: #2a4a8a; }
+
+    .error-msg {
+      background: #2a1018;
+      border: 1px solid #6b2030;
+      border-radius: 6px;
+      color: #ff8fa3;
+      font-size: 0.82rem;
+      padding: 9px 12px;
+      margin-bottom: 18px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">&#9655; TradeSimulator</div>
+  <div class="subtitle">Sign in to continue</div>
+
+  {% if error %}
+  <div class="error-msg">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{ next }}">
+
+    <label for="username">Username</label>
+    <input type="text" id="username" name="username" autocomplete="username" autofocus>
+
+    <label for="password">Password</label>
+    <input type="password" id="password" name="password" autocomplete="current-password">
+
+    <button type="submit" class="btn-login">Sign in</button>
+  </form>
+</div>
+
+</body>
+</html>

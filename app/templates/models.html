@@ -197,6 +197,220 @@
       line-height: 1;
     }
     #chart-modal .modal-close:hover { color: #fff; }
+
+    /* ── Simulate modal ── */
+    #sim-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.82);
+      z-index: 1001;
+      align-items: center;
+      justify-content: center;
+    }
+    #sim-modal.open { display: flex; }
+
+    #sim-modal .sim-box {
+      background: #141720;
+      border: 1px solid #2a3050;
+      border-radius: 10px;
+      padding: 28px 32px;
+      width: 420px;
+      max-width: 96vw;
+      position: relative;
+    }
+
+    #sim-modal h2 {
+      font-size: 1rem;
+      color: #cdd5f3;
+      margin: 0 0 6px;
+    }
+    #sim-modal .sim-subtitle {
+      font-size: 0.75rem;
+      color: #4a5280;
+      font-family: monospace;
+      margin-bottom: 22px;
+    }
+    #sim-modal .sim-close {
+      position: absolute;
+      top: 12px; right: 16px;
+      background: none; border: none;
+      color: #8892b0; font-size: 1.3rem;
+      cursor: pointer; line-height: 1;
+    }
+    #sim-modal .sim-close:hover { color: #fff; }
+
+    .sim-field {
+      margin-bottom: 14px;
+    }
+    .sim-field label {
+      display: block;
+      font-size: 0.75rem;
+      color: #8892b0;
+      margin-bottom: 4px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+    .sim-field input {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #2a3050;
+      border-radius: 5px;
+      color: #cdd5f3;
+      padding: 7px 10px;
+      font-size: 0.85rem;
+      font-family: monospace;
+      outline: none;
+    }
+    .sim-field input:focus { border-color: #3b5bdb; }
+
+    .sim-fields-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 0 14px;
+    }
+    .sim-fields-dates {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 14px;
+    }
+
+    #sim-run-btn {
+      width: 100%;
+      margin-top: 8px;
+      padding: 10px;
+      background: #1a3a6a;
+      border: 1px solid #3b5bdb;
+      color: #74c0fc;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    #sim-run-btn:hover:not(:disabled) { background: #2a4a8a; color: #a5d8ff; }
+    #sim-run-btn:disabled { opacity: 0.5; cursor: wait; }
+
+    #sim-status-area {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+      font-size: 0.83rem;
+      color: #8892b0;
+    }
+    #sim-status-area.visible { display: flex; }
+    .sim-spinner {
+      width: 20px; height: 20px;
+      border: 2px solid #2a3060;
+      border-top-color: #4d7bdb;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #sim-error { color: #ff8080; margin-top: 10px; font-size: 0.8rem; display: none; }
+
+    /* ── Note modal ── */
+    #note-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.82);
+      z-index: 1002;
+      align-items: center;
+      justify-content: center;
+    }
+    #note-modal.open { display: flex; }
+    #note-modal .note-box {
+      background: #141720;
+      border: 1px solid #2a3050;
+      border-radius: 10px;
+      padding: 24px 28px;
+      width: 480px;
+      max-width: 96vw;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    #note-modal h2 { font-size: 1rem; color: #cdd5f3; margin: 0; }
+    #note-modal .note-folder-label {
+      font-size: 0.73rem; color: #4a5280; font-family: monospace; margin-top: -6px;
+    }
+    #note-modal .note-close {
+      position: absolute; top: 12px; right: 16px;
+      background: none; border: none; color: #8892b0;
+      font-size: 1.3rem; cursor: pointer; line-height: 1;
+    }
+    #note-modal .note-close:hover { color: #fff; }
+    #note-textarea {
+      width: 100%; height: 120px;
+      background: #0f1117; border: 1px solid #2a3050;
+      border-radius: 5px; color: #cdd5f3;
+      padding: 10px; font-size: 0.85rem;
+      font-family: system-ui, sans-serif;
+      resize: vertical; outline: none;
+    }
+    #note-textarea:focus { border-color: #3b5bdb; }
+    .note-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-note-save {
+      padding: 7px 18px;
+      background: #1a3a6a; border: 1px solid #3b5bdb;
+      color: #74c0fc; border-radius: 5px;
+      font-size: 0.83rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-note-save:hover { background: #2a4a8a; }
+    .btn-note-cancel {
+      padding: 7px 14px;
+      background: #1e2130; border: 1px solid #2a3050;
+      color: #8892b0; border-radius: 5px;
+      font-size: 0.83rem; cursor: pointer;
+    }
+    .btn-note-cancel:hover { background: #2a2f45; color: #cdd5f3; }
+
+    /* Star rating picker inside modal */
+    .star-picker { display: flex; gap: 6px; }
+    .star-picker .sp-star {
+      font-size: 1.5rem; cursor: pointer; color: #2a3060; line-height: 1;
+      transition: color 0.1s; user-select: none;
+    }
+    .star-picker .sp-star.filled, .star-picker .sp-star.hover { color: #f0b429; }
+
+    /* Star display in table cell (next to folder name) */
+    .star-display {
+      display: inline-block;
+      font-size: 0.82rem;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      padding-left: 5px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .star-display .s-filled { color: #f0b429; }
+    .star-display .s-empty  { color: #2a3060; }
+
+    /* Note button in actions */
+    .btn-note {
+      background: #1e2440; border: 1px solid #2a3060;
+      color: #8090c0; border-radius: 5px;
+      padding: 3px 8px; font-size: 0.78rem; cursor: pointer;
+    }
+    .btn-note:hover { background: #2a3a60; color: #a0b8f0; border-color: #3b5bdb; }
+
+    /* Folder column: clickable link style */
+    .folder-link {
+      background: none;
+      border: none;
+      color: #6272a4;
+      font-family: monospace;
+      font-size: 0.78rem;
+      cursor: pointer;
+      padding: 0;
+      text-decoration: underline dotted;
+      text-underline-offset: 3px;
+    }
+    .folder-link:hover { color: #74c0fc; }
   </style>
 </head>
 <body>
@@ -208,6 +422,7 @@
   <a href="/">Simulations</a>
   <a href="/models" class="active">Models</a>
   <a href="/regime">Regime Monitor</a>
+  <a href="/logout" style="margin-left:auto;color:#4a5280;font-size:0.8rem">Sign out</a>
 </div>
 
 <!-- Table -->
@@ -218,9 +433,9 @@
       <tr class="group-header">
         <th colspan="4">Model</th>
         <th colspan="1">Result</th>
-        <th colspan="7">Best Params</th>
+        <th colspan="1">Best Params</th>
         <th colspan="4">Charts</th>
-        <th colspan="1">Actions</th>
+        <th colspan="2">Actions</th>
       </tr>
       <tr>
         <th data-col="0" data-type="str">Folder</th>
@@ -229,23 +444,27 @@
         <th data-col="3" data-type="str">Trade start</th>
         <th data-col="4" data-type="num">Hit rate</th>
         <th data-col="5" data-type="num">Input sz</th>
-        <th data-col="6" data-type="num">Patch</th>
-        <th data-col="7" data-type="num">Stride</th>
-        <th data-col="8" data-type="num">Enc layers</th>
-        <th data-col="9" data-type="num">Heads</th>
-        <th data-col="10" data-type="num">Hidden</th>
-        <th data-col="11" data-type="num">LR</th>
         <th>CV</th>
         <th>Train</th>
         <th title="Inspect threshold surface">Surface</th>
         <th title="Directional prediction accuracy surface">Pred</th>
+        <th style="cursor:default">Note</th>
         <th style="cursor:default">Del</th>
       </tr>
     </thead>
     <tbody>
       {% for r in rows %}
       <tr>
-        <td>{{ r.folder }}</td>
+        <td>
+          <button class="folder-link" onclick="openSimModal('{{ r.folder }}')">{{ r.folder }}</button>
+          {% if r.star_rating %}
+          <span class="star-display" title="{{ r.note_text | e }}" onclick="openNoteModal('{{ r.folder }}')"
+                data-folder="{{ r.folder }}">
+            {%- for i in range(r.star_rating) -%}<span class="s-filled">&#9733;</span>{%- endfor -%}
+            {%- for i in range(5 - r.star_rating) -%}<span class="s-empty">&#9733;</span>{%- endfor -%}
+          </span>
+          {% endif %}
+        </td>
         <td style="text-align:left; color:#cdd5f3; font-weight:600">{{ r.symbol }}</td>
         <td style="text-align:left">{{ r.load_data_from }}</td>
         <td style="text-align:left">{{ r.trading_start }}</td>
@@ -253,12 +472,6 @@
           {{ "%.3f"|format(r.best_hit_rate) if r.best_hit_rate is not none else "—" }}
         </td>
         <td>{{ r.input_size if r.input_size is not none else "—" }}</td>
-        <td>{{ r.patch_len if r.patch_len is not none else "—" }}</td>
-        <td>{{ r.stride if r.stride is not none else "—" }}</td>
-        <td>{{ r.encoder_layers if r.encoder_layers is not none else "—" }}</td>
-        <td>{{ r.n_heads if r.n_heads is not none else "—" }}</td>
-        <td>{{ r.hidden_size if r.hidden_size is not none else "—" }}</td>
-        <td>{{ "%.2e"|format(r.learning_rate) if r.learning_rate is not none else "—" }}</td>
         <td>
           {% if r.has_cv_chart %}
           <button class="btn-chart" data-url="/model-cv-image/{{ r.folder }}" data-label="{{ r.folder }} — CV backtest">&#128200;</button>
@@ -284,6 +497,11 @@
                   onclick="window.open('/pred-surface/{{ r.folder }}','_blank')">&#127919;</button>
         </td>
         <td>
+          <button class="btn-note"
+                  title="Add / edit note"
+                  onclick="openNoteModal('{{ r.folder }}')">&#128221;</button>
+        </td>
+        <td>
           <button class="btn-delete"
                   title="Move to checkpoints_failures/"
                   data-folder="{{ r.folder }}"
@@ -296,6 +514,74 @@
   {% else %}
   <p class="no-data">No models found in checkpoints/.</p>
   {% endif %}
+</div>
+
+<!-- Note modal -->
+<div id="note-modal">
+  <div class="note-box">
+    <button class="note-close" onclick="closeNoteModal()">&times;</button>
+    <h2>&#9733; Note</h2>
+    <div class="note-folder-label" id="note-modal-folder"></div>
+    <div class="star-picker" id="note-star-picker">
+      <span class="sp-star" data-v="1">&#9733;</span>
+      <span class="sp-star" data-v="2">&#9733;</span>
+      <span class="sp-star" data-v="3">&#9733;</span>
+      <span class="sp-star" data-v="4">&#9733;</span>
+      <span class="sp-star" data-v="5">&#9733;</span>
+    </div>
+    <textarea id="note-textarea" placeholder="Write a note about this model…"></textarea>
+    <div class="note-actions">
+      <button class="btn-note-cancel" onclick="closeNoteModal()">Cancel</button>
+      <button class="btn-note-save" onclick="saveNote()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Simulate modal -->
+<div id="sim-modal">
+  <div class="sim-box">
+    <button class="sim-close" onclick="closeSimModal()">&times;</button>
+    <h2>&#9654; Simulate</h2>
+    <div class="sim-subtitle" id="sim-modal-folder"></div>
+
+    <div class="sim-fields-grid">
+      <div class="sim-field">
+        <label>THRESHOLD</label>
+        <input type="number" id="sim-threshold" step="0.001" min="0">
+      </div>
+      <div class="sim-field">
+        <label>STOPLOSS</label>
+        <input type="number" id="sim-stoploss" step="0.005" min="0">
+      </div>
+      <div class="sim-field">
+        <label>TRAILING STOP</label>
+        <input type="number" id="sim-trailing" step="0.005" min="0">
+      </div>
+    </div>
+
+    <div class="sim-fields-dates">
+      <div class="sim-field">
+        <label>TRADING START</label>
+        <input type="date" id="sim-start">
+      </div>
+      <div class="sim-field">
+        <label>TRADING END</label>
+        <input type="date" id="sim-end">
+      </div>
+    </div>
+
+    <div class="sim-field" style="width:140px">
+      <label>SIGNAL HORIZON STEPS</label>
+      <input type="number" id="sim-horizon" min="1" max="10" step="1">
+    </div>
+
+    <button id="sim-run-btn" onclick="runSimulation()">Run Simulation</button>
+    <div id="sim-error"></div>
+    <div id="sim-status-area">
+      <div class="sim-spinner"></div>
+      <span id="sim-status-text">Running simulation…</span>
+    </div>
+  </div>
 </div>
 
 <!-- Chart modal -->
@@ -393,6 +679,215 @@
       if (e.key === "Escape") closeModal();
     });
   })();
+
+  // ── Note modal ───────────────────────────────────────────────────────────────
+  let _noteFolder = null;
+  let _noteRating = 0;
+
+  // Star picker interaction
+  (function () {
+    const stars = document.querySelectorAll("#note-star-picker .sp-star");
+    function paintStars(filled, hovered) {
+      stars.forEach((s, i) => {
+        s.classList.toggle("filled", i < filled);
+        s.classList.toggle("hover",  hovered > 0 && i < hovered);
+      });
+    }
+    stars.forEach((s, i) => {
+      s.addEventListener("mouseover", () => paintStars(_noteRating, i + 1));
+      s.addEventListener("mouseout",  () => paintStars(_noteRating, 0));
+      s.addEventListener("click", () => {
+        // clicking the same value again clears it (toggle off)
+        _noteRating = (_noteRating === i + 1) ? 0 : i + 1;
+        paintStars(_noteRating, 0);
+      });
+    });
+    window._paintStars = paintStars;
+  })();
+
+  function _setNoteRating(val) {
+    _noteRating = val;
+    window._paintStars(val, 0);
+  }
+
+  async function openNoteModal(folder) {
+    _noteFolder = folder;
+    document.getElementById("note-modal-folder").textContent = folder;
+    document.getElementById("note-textarea").value = "";
+    _setNoteRating(0);
+    try {
+      const resp = await fetch(`/model-note/${folder}`);
+      const data = await resp.json();
+      document.getElementById("note-textarea").value = data.text || "";
+      _setNoteRating(data.rating || 0);
+    } catch (e) { /* leave blank */ }
+    document.getElementById("note-modal").classList.add("open");
+    document.getElementById("note-textarea").focus();
+  }
+  window.openNoteModal = openNoteModal;
+
+  function closeNoteModal() {
+    document.getElementById("note-modal").classList.remove("open");
+  }
+  window.closeNoteModal = closeNoteModal;
+
+  async function saveNote() {
+    const text   = document.getElementById("note-textarea").value.trim();
+    const rating = _noteRating;
+    try {
+      const resp = await fetch(`/model-note/${_noteFolder}`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ rating, text }),
+      });
+      const data = await resp.json();
+      // Update the star display in the folder cell without a full reload
+      const td = document.querySelector(
+        `button.folder-link[onclick="openSimModal('${_noteFolder}')"]`
+      )?.closest("td");
+      if (td) {
+        let disp = td.querySelector(".star-display");
+        if (data.rating > 0) {
+          if (!disp) {
+            disp = document.createElement("span");
+            disp.className = "star-display";
+            disp.dataset.folder = _noteFolder;
+            disp.setAttribute("onclick", `openNoteModal('${_noteFolder}')`);
+            td.appendChild(disp);
+          }
+          disp.title = data.text || "";
+          const filled = data.rating;
+          disp.innerHTML =
+            '<span class="s-filled">&#9733;</span>'.repeat(filled) +
+            '<span class="s-empty">&#9733;</span>'.repeat(5 - filled);
+        } else if (disp) {
+          disp.remove();
+        }
+      }
+      closeNoteModal();
+    } catch (e) {
+      alert("Failed to save note: " + e);
+    }
+  }
+  window.saveNote = saveNote;
+
+  document.getElementById("note-modal").addEventListener("click", (e) => {
+    if (e.target === document.getElementById("note-modal")) closeNoteModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.getElementById("note-modal").classList.contains("open"))
+      closeNoteModal();
+  });
+
+  // ── Simulate modal ───────────────────────────────────────────────────────────
+  let _simFolder  = null;
+  let _simPollTimer = null;
+
+  async function openSimModal(folder) {
+    _simFolder = folder;
+    document.getElementById("sim-modal-folder").textContent = folder;
+    document.getElementById("sim-error").style.display = "none";
+    document.getElementById("sim-error").textContent = "";
+    document.getElementById("sim-status-area").classList.remove("visible");
+    document.getElementById("sim-run-btn").disabled = false;
+    document.getElementById("sim-run-btn").textContent = "Run Simulation";
+
+    try {
+      const resp = await fetch(`/simulate-defaults/${folder}`);
+      if (!resp.ok) throw new Error(await resp.text());
+      const d = await resp.json();
+      document.getElementById("sim-threshold").value = d.threshold;
+      document.getElementById("sim-stoploss").value  = d.stoploss_threshold;
+      document.getElementById("sim-trailing").value  = d.trailing_stop_threshold;
+      document.getElementById("sim-start").value     = d.trading_start;
+      document.getElementById("sim-end").value       = d.trading_end;
+      document.getElementById("sim-horizon").value   = d.signal_horizon_steps;
+    } catch (e) {
+      showSimError("Failed to load defaults: " + e);
+    }
+    document.getElementById("sim-modal").classList.add("open");
+  }
+  window.openSimModal = openSimModal;
+
+  function closeSimModal() {
+    if (_simPollTimer) { clearInterval(_simPollTimer); _simPollTimer = null; }
+    document.getElementById("sim-modal").classList.remove("open");
+  }
+  window.closeSimModal = closeSimModal;
+
+  function showSimError(msg) {
+    const el = document.getElementById("sim-error");
+    el.textContent = msg;
+    el.style.display = "block";
+    document.getElementById("sim-status-area").classList.remove("visible");
+    document.getElementById("sim-run-btn").disabled = false;
+    document.getElementById("sim-run-btn").textContent = "Run Simulation";
+  }
+
+  async function runSimulation() {
+    document.getElementById("sim-error").style.display = "none";
+    document.getElementById("sim-run-btn").disabled = true;
+    document.getElementById("sim-run-btn").textContent = "Starting…";
+    document.getElementById("sim-status-area").classList.add("visible");
+    document.getElementById("sim-status-text").textContent = "Starting simulation…";
+
+    const body = {
+      threshold:               parseFloat(document.getElementById("sim-threshold").value),
+      stoploss_threshold:      parseFloat(document.getElementById("sim-stoploss").value),
+      trailing_stop_threshold: parseFloat(document.getElementById("sim-trailing").value),
+      trading_start:           document.getElementById("sim-start").value,
+      trading_end:             document.getElementById("sim-end").value,
+      signal_horizon_steps:    parseInt(document.getElementById("sim-horizon").value),
+    };
+
+    let jobId;
+    try {
+      const resp = await fetch(`/simulate-run/${_simFolder}`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        showSimError("Error: " + (err.detail || resp.statusText));
+        return;
+      }
+      const data = await resp.json();
+      jobId = data.job_id;
+    } catch (e) {
+      showSimError("Request failed: " + e);
+      return;
+    }
+
+    document.getElementById("sim-status-text").textContent = "Simulation running…";
+    _simPollTimer = setInterval(async () => {
+      try {
+        const r = await fetch(`/simulate-job/${jobId}`);
+        const d = await r.json();
+        if (d.status === "done") {
+          clearInterval(_simPollTimer); _simPollTimer = null;
+          document.getElementById("sim-status-text").textContent = "Done! Redirecting…";
+          window.location.href = `/sim-detail/${d.run_folder}`;
+        } else if (d.status === "error") {
+          clearInterval(_simPollTimer); _simPollTimer = null;
+          showSimError("Simulation failed: " + (d.error || "unknown error"));
+        }
+      } catch (e) {
+        clearInterval(_simPollTimer); _simPollTimer = null;
+        showSimError("Polling failed: " + e);
+      }
+    }, 3000);
+  }
+  window.runSimulation = runSimulation;
+
+  // Close sim modal on backdrop click or Escape
+  document.getElementById("sim-modal").addEventListener("click", (e) => {
+    if (e.target === document.getElementById("sim-modal")) closeSimModal();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && document.getElementById("sim-modal").classList.contains("open"))
+      closeSimModal();
+  });
 
   async function deleteModel(btn) {
     const folder = btn.dataset.folder;

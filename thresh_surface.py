@@ -388,6 +388,7 @@ def run_surface_study(
         sampler=sampler,
         storage=f"sqlite:///{output_dir}/db.sqlite3",
         study_name=params.traded_symbol + ":thresh_surface",
+        load_if_exists=True,
     )
     optuna.logging.set_verbosity(optuna.logging.WARNING)
     print(f"\nRunning {n_trials} trials…")

@@ -76,7 +76,7 @@ def _build_model(trial, config: TrainConfig) -> PatchTST:
         n_heads=trial.suggest_categorical('n_heads', [2, 4, 8]),
         hidden_size=trial.suggest_categorical('hidden_size', [32, 64, 128]),
         linear_hidden_size=trial.suggest_categorical('linear_hidden_size', [32, 64, 128, 256, 512]),
-        dropout=trial.suggest_float('dropout', 0.0, 0.3),
+        dropout=trial.suggest_float('dropout', 0.1, 0.5),
         learning_rate=trial.suggest_float('learning_rate', 1e-4, 1e-3, log=True),
         max_steps=config.optuna_max_steps,
         loss=MQLoss(level=[80, 95]),

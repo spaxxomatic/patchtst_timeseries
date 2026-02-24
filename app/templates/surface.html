@@ -144,6 +144,89 @@
       gap: 6px 20px;
     }
 
+    /* ── Note section ── */
+    .note-section {
+      background: #141720;
+      border: 1px solid #2a3050;
+      border-radius: 6px;
+      padding: 10px 16px;
+      margin-bottom: 20px;
+    }
+    .note-view {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .note-body { flex: 1; min-width: 0; }
+    .note-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #4a5280;
+      font-weight: 600;
+    }
+    .note-text {
+      font-size: 0.83rem;
+      color: #a0aacc;
+      white-space: pre-wrap;
+      line-height: 1.5;
+      margin-top: 3px;
+    }
+    .note-empty { font-size: 0.82rem; color: #3a4060; font-style: italic; margin-top: 3px; }
+    .btn-note-edit {
+      background: none;
+      border: 1px solid #2a3050;
+      color: #5a6a94;
+      border-radius: 4px;
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .btn-note-edit:hover { border-color: #3b5bdb; color: #74c0fc; }
+    .note-stars {
+      display: flex; gap: 3px; margin-top: 3px;
+    }
+    .note-stars .ns { font-size: 1.1rem; }
+    .note-stars .ns.filled { color: #f0b429; }
+    .note-stars .ns.empty  { color: #2a3060; }
+    .note-edit-row { display: none; margin-top: 8px; }
+    .star-picker { display: flex; gap: 6px; margin-bottom: 8px; }
+    .star-picker .sp-star {
+      font-size: 1.5rem; cursor: pointer; color: #2a3060; line-height: 1;
+      transition: color 0.1s; user-select: none;
+    }
+    .star-picker .sp-star.filled, .star-picker .sp-star.hover { color: #f0b429; }
+    .note-textarea {
+      width: 100%;
+      background: #0f1117;
+      border: 1px solid #3b5bdb;
+      border-radius: 5px;
+      color: #cdd5f3;
+      padding: 8px 10px;
+      font-size: 0.83rem;
+      font-family: system-ui, sans-serif;
+      resize: vertical;
+      min-height: 68px;
+      outline: none;
+    }
+    .note-edit-actions { display: flex; gap: 8px; margin-top: 6px; }
+    .btn-note-save {
+      padding: 5px 16px;
+      background: #1a3a6a; border: 1px solid #3b5bdb;
+      color: #74c0fc; border-radius: 4px;
+      font-size: 0.8rem; font-weight: 700; cursor: pointer;
+    }
+    .btn-note-save:hover { background: #2a4a8a; }
+    .btn-note-cancel {
+      padding: 5px 12px;
+      background: #1e2130; border: 1px solid #2a3050;
+      color: #8892b0; border-radius: 4px;
+      font-size: 0.8rem; cursor: pointer;
+    }
+    .btn-note-cancel:hover { background: #2a2f45; }
+
     .error-box {
       background: #2a1010;
       border: 1px solid #5a2020;
@@ -159,10 +242,36 @@
 
 <div class="nav">
   <a href="/models">← Models</a>
+  <a href="/logout" style="margin-left:auto;color:#4a5280;font-size:0.8rem">Sign out</a>
 </div>
 
 <h1>&#127774; Threshold Surface Study {{ model_folder }}</h1>
 
+<!-- Note section -->
+<div class="note-section">
+  <div class="note-view" id="note-view">
+    <div class="note-body">
+      <div class="note-label">&#9733; Note</div>
+      <div class="note-stars" id="note-stars"></div>
+      <div id="note-text" class="note-empty">Loading…</div>
+    </div>
+    <button class="btn-note-edit" id="note-edit-btn" onclick="startEditNote()">&#9998; Edit</button>
+  </div>
+  <div class="note-edit-row" id="note-edit-row">
+    <div class="star-picker" id="star-picker">
+      <span class="sp-star" data-v="1">&#9733;</span>
+      <span class="sp-star" data-v="2">&#9733;</span>
+      <span class="sp-star" data-v="3">&#9733;</span>
+      <span class="sp-star" data-v="4">&#9733;</span>
+      <span class="sp-star" data-v="5">&#9733;</span>
+    </div>
+    <textarea class="note-textarea" id="note-input" placeholder="Write a note about this model…"></textarea>
+    <div class="note-edit-actions">
+      <button class="btn-note-save" onclick="saveNote()">Save</button>
+      <button class="btn-note-cancel" onclick="cancelEditNote()">Cancel</button>
+    </div>
+  </div>
+</div>
 
 <!-- Status panel (shown while pending or running) -->
 <div id="status-panel">
@@ -355,6 +464,14 @@
       } else if (data.status === "running") {
         setStatus("<strong>Running…</strong>&ensp;Surface study in progress — this may take a few minutes.", true);
         startPolling();
+      } else if (data.status === "error") {
+        clearInterval(pollTimer);
+        pollTimer = null;
+        setStatus(
+          `<span style="color:#ff6b6b"><strong>Error:</strong> ${data.message ?? "Unknown error"}</span>` +
+          `<br><button class="btn-start" style="margin-top:10px" onclick="location.reload()">&#8635; Retry</button>`,
+          false
+        );
       } else {
         // pending — auto-start
         clearInterval(pollTimer);
@@ -369,6 +486,93 @@
   // Kick off on page load
   poll();
 
+})();
+
+// ── Inline note ───────────────────────────────────────────────────────────────
+(function () {
+  const FOLDER = {{ model_folder | tojson }};
+  let _origText   = "";
+  let _origRating = 0;
+  let _editRating = 0;
+
+  // Star picker setup
+  const pickerStars = document.querySelectorAll("#star-picker .sp-star");
+  function paintPicker(filled, hovered) {
+    pickerStars.forEach((s, i) => {
+      s.classList.toggle("filled", i < filled);
+      s.classList.toggle("hover",  hovered > 0 && i < hovered);
+    });
+  }
+  pickerStars.forEach((s, i) => {
+    s.addEventListener("mouseover", () => paintPicker(_editRating, i + 1));
+    s.addEventListener("mouseout",  () => paintPicker(_editRating, 0));
+    s.addEventListener("click", () => {
+      _editRating = (_editRating === i + 1) ? 0 : i + 1;
+      paintPicker(_editRating, 0);
+    });
+  });
+
+  function renderStars(rating) {
+    const el = document.getElementById("note-stars");
+    el.innerHTML =
+      '<span class="ns filled">&#9733;</span>'.repeat(rating) +
+      '<span class="ns empty">&#9733;</span>'.repeat(5 - rating);
+    el.style.display = rating > 0 ? "flex" : "none";
+  }
+
+  function renderNote(rating, text) {
+    const el  = document.getElementById("note-text");
+    const btn = document.getElementById("note-edit-btn");
+    renderStars(rating);
+    if (text) {
+      el.textContent = text; el.className = "note-text";
+      btn.textContent = "\u270e Edit";
+    } else if (rating > 0) {
+      el.textContent = ""; el.className = "note-text";
+      btn.textContent = "\u270e Edit";
+    } else {
+      el.textContent = "No note yet \u2014 click Edit to add one.";
+      el.className = "note-empty";
+      btn.textContent = "\u270e Add note";
+    }
+    document.getElementById("note-view").style.display = "flex";
+    document.getElementById("note-edit-row").style.display = "none";
+  }
+
+  async function loadNote() {
+    try {
+      const d = await fetch(`/model-note/${FOLDER}`).then(r => r.json());
+      _origRating = d.rating || 0;
+      _origText   = d.text   || "";
+      renderNote(_origRating, _origText);
+    } catch (_) { renderNote(0, ""); }
+  }
+
+  window.startEditNote = function () {
+    _editRating = _origRating;
+    paintPicker(_editRating, 0);
+    document.getElementById("note-input").value = _origText;
+    document.getElementById("note-view").style.display = "none";
+    document.getElementById("note-edit-row").style.display = "block";
+    document.getElementById("note-input").focus();
+  };
+
+  window.cancelEditNote = function () { renderNote(_origRating, _origText); };
+
+  window.saveNote = async function () {
+    const text   = document.getElementById("note-input").value.trim();
+    const rating = _editRating;
+    try {
+      const d = await fetch(`/model-note/${FOLDER}`, {
+        method: "POST", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({rating, text}),
+      }).then(r => r.json());
+      _origRating = d.rating; _origText = d.text;
+      renderNote(_origRating, _origText);
+    } catch (e) { alert("Save failed: " + e); }
+  };
+
+  loadNote();
 })();
 </script>
 

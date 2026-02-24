@@ -417,16 +417,19 @@ def plot_pred_surface(
     fig, axes = plt.subplots(1, 3, figsize=(20, 5))
     fig.suptitle(
         "Directional Accuracy Surface — marginal heatmaps  (mean over 3rd axis)",
-        fontsize=12,
+        fontsize=12, color="#cdd5f3",
     )
     fig.patch.set_facecolor("#0f1117")
     for ax in axes:
         ax.set_facecolor("#141720")
 
+    # Each tuple: (x_var, y_var, marginal_var)
+    # x_var → columns after unstack → horizontal axis
+    # y_var → index after groupby   → vertical axis
     pair_specs = [
-        ("test_period_days", "threshold",        "model_input_len"),
-        ("model_input_len",  "threshold",        "test_period_days"),
-        ("model_input_len",  "test_period_days", "threshold"),
+        ("threshold",        "test_period_days", "model_input_len"),
+        ("threshold",        "model_input_len",  "test_period_days"),
+        ("test_period_days", "model_input_len",  "threshold"),
     ]
 
     work = df.copy()
@@ -436,10 +439,18 @@ def plot_pred_surface(
             return w[col].astype(str)
         return pd.cut(w[col], bins=n)
 
+    def _lbl(v):
+        if isinstance(v, pd.Interval):
+            return f"{v.mid:.3g}"
+        return str(v)
+
     for ax, (xp, yp, _) in zip(axes, pair_specs):
+        # xp → _xbin → unstack → columns → X axis
+        # yp → _ybin → groupby index → Y axis
         work["_xbin"] = _bin_col(work, xp)
         work["_ybin"] = _bin_col(work, yp)
-        grid = work.groupby(["_xbin", "_ybin"], observed=True)["dir_acc"].mean().unstack()
+        grid = work.groupby(["_ybin", "_xbin"], observed=True)["dir_acc"].mean().unstack()
+        # grid.index = yp values, grid.columns = xp values
 
         vals   = grid.values[~np.isnan(grid.values)]
         spread = max(abs(vals.min() - CHANCE), abs(vals.max() - CHANCE), 0.025) if len(vals) else 0.05
@@ -454,12 +465,13 @@ def plot_pred_surface(
             vmin=vmin_a,
             vmax=vmax_a,
         )
-        plt.colorbar(im, ax=ax, label="Dir Accuracy")
-
-        def _lbl(v):
-            if isinstance(v, pd.Interval):
-                return f"{v.mid:.3g}"
-            return str(v)
+        cb = plt.colorbar(im, ax=ax, shrink=0.85, pad=0.02)
+        cb.set_label("Dir. Accuracy", color="#cdd5f3", fontsize=8)
+        cb.ax.yaxis.set_tick_params(color="#8892b0")
+        cb.ax.tick_params(labelcolor="#8892b0", labelsize=7)
+        # annotate chance line on colorbar
+        cb.ax.axhline((CHANCE - vmin_a) / (vmax_a - vmin_a), color="white",
+                      linewidth=1.2, linestyle="--", alpha=0.7)
 
         ax.set_xticks(range(len(grid.columns)))
         ax.set_yticks(range(len(grid.index)))
@@ -467,7 +479,7 @@ def plot_pred_surface(
         ax.set_yticklabels([_lbl(r) for r in grid.index], fontsize=7)
         ax.set_xlabel(xp, labelpad=6, color="#8892b0")
         ax.set_ylabel(yp, labelpad=6, color="#8892b0")
-        ax.set_title(f"{xp}  vs  {yp}", color="#cdd5f3")
+        ax.set_title(f"{xp}  ×  {yp}", color="#cdd5f3")
         ax.tick_params(colors="#8892b0")
 
         work.drop(columns=["_xbin", "_ybin"], inplace=True)

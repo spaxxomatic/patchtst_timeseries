@@ -9,6 +9,22 @@ CHECKPOINTS = Path(__file__).parent.parent / "checkpoints"
 PROJECT_ROOT = Path(__file__).parent.parent
 
 
+def _load_note(folder: Path) -> dict:
+    """Read note.json, falling back to legacy note.txt. Returns star_rating + note_text."""
+    note_file = folder / "note.json"
+    if note_file.exists():
+        try:
+            d = json.loads(note_file.read_text())
+            return {"star_rating": int(d.get("rating", 0)), "note_text": d.get("text", "")}
+        except Exception:
+            pass
+    # legacy plain-text fallback
+    txt_file = folder / "note.txt"
+    if txt_file.exists():
+        return {"star_rating": 0, "note_text": txt_file.read_text().strip()}
+    return {"star_rating": 0, "note_text": ""}
+
+
 def load_model_reports() -> list[dict]:
     """Return one flat dict per checkpoint folder that contains optuna_summary.json."""
     rows = []
@@ -43,9 +59,10 @@ def load_model_reports() -> list[dict]:
             "linear_hidden_size":   bp.get("linear_hidden_size"),
             "dropout":              bp.get("dropout"),
             "learning_rate":        bp.get("learning_rate"),
-            # available charts
+            # available charts / extras
             "has_cv_chart":         (folder / "cv_backtest.png").exists(),
             "has_train_chart":      (folder / "training_curves.png").exists(),
+            **_load_note(folder),
         })
     return rows
 

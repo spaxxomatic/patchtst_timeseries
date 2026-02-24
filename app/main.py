@@ -7,11 +7,16 @@ Run from project root:
 
 import json
 import os
+import secrets
 import shutil
-from fastapi import FastAPI, Request, Query, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+import uuid
+from datetime import date
+from fastapi import FastAPI, Request, Query, HTTPException, BackgroundTasks, Form
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
 from app.reports import load_reports, get_symbols, TRADESIMLOG, PROJECT_ROOT
 from app.model_reports import load_model_reports, CHECKPOINTS
@@ -22,8 +27,88 @@ CHECKPOINTS_FAILURES = PROJECT_ROOT / "checkpoints_failures"
 _SURFACE_LOCK      = "surface.lock"
 _PRED_SURFACE_LOCK = "pred_surface.lock"
 
+# ─── Auth helpers ─────────────────────────────────────────────────────────────
+
+_CREDENTIALS_FILE = PROJECT_ROOT / "credentials.txt"
+_SECRET_FILE      = PROJECT_ROOT / ".session_secret"
+
+def _load_credentials() -> tuple[str, str]:
+    if _CREDENTIALS_FILE.exists():
+        try:
+            line = _CREDENTIALS_FILE.read_text().strip()
+            if ":" in line:
+                u, p = line.split(":", 1)
+                return u.strip(), p.strip()
+        except Exception:
+            pass
+    return ("admin", "admin2026")
+
+def _get_session_secret() -> str:
+    if _SECRET_FILE.exists():
+        return _SECRET_FILE.read_text().strip()
+    key = secrets.token_hex(32)
+    _SECRET_FILE.write_text(key)
+    return key
+
+# Routes exempt from authentication
+_AUTH_EXEMPT = {"/health", "/login", "/logout"}
+
+class _AuthMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path in _AUTH_EXEMPT:
+            return await call_next(request)
+        if not request.session.get("authenticated"):
+            return RedirectResponse(
+                url=f"/login?next={request.url.path}", status_code=302
+            )
+        return await call_next(request)
+
 app = FastAPI(title="TradeSimulator Dashboard")
+app.add_middleware(_AuthMiddleware)
+app.add_middleware(SessionMiddleware, secret_key=_get_session_secret(), max_age=86400 * 30)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+
+@app.get("/health", response_class=HTMLResponse)
+async def health_check():
+    return "OK"
+
+
+# ─── Login / Logout ───────────────────────────────────────────────────────────
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, next: str = "/"):
+    if request.session.get("authenticated"):
+        return RedirectResponse(url=next, status_code=302)
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "next":    next,
+        "error":   None,
+    })
+
+
+@app.post("/login", response_class=HTMLResponse)
+async def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    next: str     = Form(default="/"),
+):
+    expected_user, expected_pass = _load_credentials()
+    if username == expected_user and password == expected_pass:
+        request.session["authenticated"] = True
+        return RedirectResponse(url=next or "/", status_code=302)
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "next":    next,
+        "error":   "Invalid username or password.",
+    }, status_code=401)
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=302)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -283,6 +368,37 @@ async def rerun_sim(run_folder: str, background_tasks: BackgroundTasks):
     return JSONResponse({"status": "started"})
 
 
+# ─── Model notes ──────────────────────────────────────────────────────────────
+
+@app.get("/model-note/{model_folder:path}")
+async def get_model_note(model_folder: str):
+    note_file = CHECKPOINTS / model_folder / "note.json"
+    if note_file.exists():
+        try:
+            d = json.loads(note_file.read_text())
+            return JSONResponse({"rating": int(d.get("rating", 0)), "text": d.get("text", "")})
+        except Exception:
+            pass
+    # legacy plain-text fallback
+    txt_file = CHECKPOINTS / model_folder / "note.txt"
+    if txt_file.exists():
+        return JSONResponse({"rating": 0, "text": txt_file.read_text().strip()})
+    return JSONResponse({"rating": 0, "text": ""})
+
+
+@app.post("/model-note/{model_folder:path}")
+async def save_model_note(model_folder: str, request: Request):
+    note_file = CHECKPOINTS / model_folder / "note.json"
+    body = await request.json()
+    rating = max(0, min(5, int(body.get("rating", 0))))
+    text   = body.get("text", "").strip()
+    if rating or text:
+        note_file.write_text(json.dumps({"rating": rating, "text": text}))
+    else:
+        note_file.unlink(missing_ok=True)
+    return JSONResponse({"status": "ok", "rating": rating, "text": text})
+
+
 # ─── Model delete ─────────────────────────────────────────────────────────────
 
 @app.post("/delete-model/{model_folder:path}")
@@ -328,9 +444,12 @@ async def surface_status(model_folder: str):
     study_dir    = CHECKPOINTS / model_folder / "surface_study"
     lock_file    = study_dir / _SURFACE_LOCK
     summary_file = study_dir / "surface_summary.json"
+    error_file   = study_dir / "surface_error.txt"
 
     if lock_file.exists():
         return JSONResponse({"status": "running"})
+    if error_file.exists():
+        return JSONResponse({"status": "error", "message": error_file.read_text()})
     if summary_file.exists():
         summary = json.loads(summary_file.read_text())
         images  = {
@@ -377,6 +496,7 @@ async def surface_run(model_folder: str, background_tasks: BackgroundTasks):
     if sim_folder is None:
         raise HTTPException(status_code=422, detail="No tradesimlog run found for this model — run a simulation first")
     study_dir.mkdir(parents=True, exist_ok=True)
+    (study_dir / "surface_error.txt").unlink(missing_ok=True)
     lock_file.touch()
     background_tasks.add_task(_do_surface_run, model_folder)
     return JSONResponse({"status": "started"})
@@ -499,6 +619,97 @@ async def pred_surface_replot(model_folder: str, background_tasks: BackgroundTas
     lock_file.touch()
     background_tasks.add_task(_do_pred_surface_replot, model_folder)
     return JSONResponse({"status": "started"})
+
+
+# ─── Simulate from model ──────────────────────────────────────────────────────
+
+_SIM_JOBS: dict = {}   # job_id → {"status": "running"|"done"|"error", ...}
+
+
+@app.get("/simulate-defaults/{model_folder:path}")
+async def simulate_defaults(model_folder: str):
+    """Return default params for the Simulate modal."""
+    summary_file = CHECKPOINTS / model_folder / "optuna_summary.json"
+    if not summary_file.exists():
+        raise HTTPException(status_code=404, detail="optuna_summary.json not found")
+
+    summary  = json.loads(summary_file.read_text())
+    config   = summary.get("config", {})
+    defaults = {
+        "threshold":               0.010,
+        "stoploss_threshold":      0.05,
+        "trailing_stop_threshold": 0.0,
+        "trading_start":           summary.get("trading_start", "2025-01-01"),
+        "trading_end":             date.today().strftime("%Y-%m-%d"),
+        "signal_horizon_steps":    min(3, config.get("h", 7)),
+        "fee":                     0.001,
+        "traded_symbol":           summary.get("traded_symbol", ""),
+    }
+
+    # If a previous sim exists for this model, use its trading params as defaults
+    sim_folder = _find_tradesim_folder_for_model(model_folder)
+    if sim_folder:
+        try:
+            p = json.loads((sim_folder / "tradesimparams.json").read_text())
+            for key in ("threshold", "stoploss_threshold", "trailing_stop_threshold",
+                        "trading_start", "trading_end", "signal_horizon_steps"):
+                src = key.upper() if key in ("threshold", "stoploss_threshold",
+                                              "trailing_stop_threshold", "fee") else key
+                val = p.get(src) or p.get(key)
+                if val is not None:
+                    defaults[key] = val
+        except Exception:
+            pass
+
+    return JSONResponse(defaults)
+
+
+def _do_simulate_job(job_id: str, model_folder: str, params_dict: dict) -> None:
+    from simulator import run_simulation
+
+    os.chdir(PROJECT_ROOT)
+    try:
+        summary = json.loads(
+            (CHECKPOINTS / model_folder / "optuna_summary.json").read_text()
+        )
+        params = TradeSimParams(
+            THRESHOLD               = float(params_dict["threshold"]),
+            STOPLOSS_THRESHOLD      = float(params_dict["stoploss_threshold"]),
+            TRAILING_STOP_THRESHOLD = float(params_dict["trailing_stop_threshold"]),
+            FEE                     = float(params_dict.get("fee", 0.001)),
+            tickers                 = summary["tickers"],
+            load_data_from_date     = summary["load_data_from"],
+            trading_start           = params_dict["trading_start"],
+            trading_end             = params_dict["trading_end"],
+            traded_symbol           = summary["traded_symbol"],
+            signal_horizon_steps    = int(params_dict["signal_horizon_steps"]),
+            model_path              = f"checkpoints/{model_folder}",
+        )
+        run_simulation(params)
+        _SIM_JOBS[job_id] = {"status": "done", "run_folder": params.logfolder.name}
+    except Exception as exc:
+        _SIM_JOBS[job_id] = {"status": "error", "error": str(exc)}
+
+
+@app.post("/simulate-run/{model_folder:path}")
+async def simulate_run_new(model_folder: str, request: Request,
+                           background_tasks: BackgroundTasks):
+    summary_file = CHECKPOINTS / model_folder / "optuna_summary.json"
+    if not summary_file.exists():
+        raise HTTPException(status_code=422, detail="optuna_summary.json not found")
+    body   = await request.json()
+    job_id = uuid.uuid4().hex[:10]
+    _SIM_JOBS[job_id] = {"status": "running"}
+    background_tasks.add_task(_do_simulate_job, job_id, model_folder, body)
+    return JSONResponse({"job_id": job_id})
+
+
+@app.get("/simulate-job/{job_id}")
+async def simulate_job_status(job_id: str):
+    job = _SIM_JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return JSONResponse(job)
 
 
 # ─── Regime Change Monitor ────────────────────────────────────────────────────
