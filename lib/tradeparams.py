@@ -39,6 +39,7 @@ class TradeSimParams:
     trading_end:str
     traded_symbol:str
     signal_horizon_steps:int = 3
+    CUTOFF_THRESHOLD:float = 0.007 # Upper limit for the predicted probability. Statistically many "strong" predictions are wrong 
     model_path:str = None  # auto-generated in __post_init__ if not provided
     model_storage_folder:Path = field(init=False)
     logfolder:Path = field(init=False)

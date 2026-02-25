@@ -79,6 +79,7 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
         tradeSimParams.model_path, percentile='p25', fallback=tradeSimParams.THRESHOLD
     )
     THRESHOLD = tradeSimParams.THRESHOLD
+    CUTOFF_THRESHOLD = tradeSimParams.CUTOFF_THRESHOLD
     print("Loading data")
     simdata:TradeSimulData = TradeSimulData(tradeSimParams)
 
@@ -161,6 +162,8 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
         #avg_hi_80  = mean([p['PatchTST-hi-80']  for p in predictions])
 
         signal = 0
+        if abs(trend_pred) > float(CUTOFF_THRESHOLD) :
+            return 0, trend_pred                  
         if trend_pred > float(THRESHOLD):
             signal = 1
         elif trend_pred < -float(THRESHOLD):
