@@ -284,7 +284,7 @@ def compute_dir_accuracy(
 def run_pred_surface_study(
     params:              TradeSimParams,
     n_trials:            int = 1000,
-    threshold_range:     Tuple[float, float] = (0.0, 0.020),
+    threshold_range:     Tuple[float, float] = (0.0, 0.008),
     output_dir:          Optional[Path] = None,
     cache_file:          Optional[Path] = None,
     force_cache:         bool = False,

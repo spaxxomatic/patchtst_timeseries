@@ -1,0 +1,52 @@
+{
+  "traded_symbol": "V",
+  "tickers": [
+    "V",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2010-01-01",
+  "trading_start": "2025-01-01",
+  "best_consistency_score": 0.5,
+  "best_params": {
+    "input_size": 90,
+    "patch_len": 16,
+    "stride": 8,
+    "encoder_layers": 1,
+    "n_heads": 8,
+    "hidden_size": 64,
+    "linear_hidden_size": 512,
+    "dropout": 0.28142054898006436,
+    "learning_rate": 0.00021524563160186646
+  },
+  "runtime": 1117,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "fold_hit_rates": [
+    0.5,
+    0.5,
+    0.5,
+    0.5
+  ],
+  "fold_hr_mean": 0.5,
+  "fold_hr_std": 0.0,
+  "fold_worst_hr": 0.5,
+  "n_folds_above_chance": 0,
+  "fold_consistency_score": 0.5,
+  "threshold_calibration": {
+    "p25": 0.000791,
+    "p50": 0.001487,
+    "p75": 0.003005
+  }
+}

@@ -6,8 +6,8 @@ import yfinance as yf
 import os
 import numpy as np
 
-os.environ["HTTP_PROXY"]  = "http://proxy.isoad.isogmbh.de:81"
-os.environ["HTTPS_PROXY"] = "http://proxy.isoad.isogmbh.de:81"
+#os.environ["HTTP_PROXY"]  = "http://proxy.isoad.isogmbh.de:81"
+#os.environ["HTTPS_PROXY"] = "http://proxy.isoad.isogmbh.de:81"
 
 _OHLCV = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
 

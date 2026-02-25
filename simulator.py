@@ -202,7 +202,8 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
         
         forecast = get_forecast(today)
         signal, prediction = get_signal(forecast)
-        
+        if tradeSimParams.invert_signal:
+            signal = -signal
         #vix_gate_signal = vix_gate(today)
         vix_gate_signal = 1
         if vix_gate_signal < 1:            
@@ -291,23 +292,23 @@ def _run_simulation_inner(tradeSimParams:TradeSimParams):
     
 if __name__ == "__main__":
     
-    for signal_horizon_step in range(1,8):
-        traded_symbol = 'AMGN'
+    for signal_horizon_step in range(3,7):
+        traded_symbol = 'BAC'
         params = TradeSimParams(
             THRESHOLD=0.001,
-            STOPLOSS_THRESHOLD= -0.2,
+            STOPLOSS_THRESHOLD= -0.3,
             TRAILING_STOP_THRESHOLD= 0.7,        
             FEE= 0.0005,
             traded_symbol = traded_symbol,
             tickers = [traded_symbol, '^SPX', '^VIX'],
-            load_data_from_date="2015-01-01",
-            trading_start="2025-08-01",
-            trading_end="2026-01-01",
+            load_data_from_date="2010-01-01",
+            trading_start="2025-01-01",
+            trading_end="2025-12-24",
             signal_horizon_steps=signal_horizon_step,
             # model_path auto-generated as checkpoints/KO_2020-01-01_2025-01-01
             # override here if needed:
             # model_path="./checkpoints/patchtst_momentum_model_multivar_100days_KO_conf_interval/",
             )
-        
+        params.invert_signal = False
         params.model_storage_folder =  locate_model_folder(params.traded_symbol, params.load_data_from_date)
         run_simulation(params)   

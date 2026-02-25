@@ -1,0 +1,17 @@
+{
+  "n_trials": 1000,
+  "dir_acc_mean": 0.4869,
+  "dir_acc_std": 0.2575,
+  "dir_acc_min": 0.0,
+  "dir_acc_max": 1.0,
+  "frac_above_50pct": 15.6,
+  "frac_above_52pct": 15.6,
+  "frac_above_55pct": 15.6,
+  "best_params": {
+    "model_input_len": 50,
+    "test_period_days": 192,
+    "threshold": 0.014549,
+    "dir_acc": 1.0,
+    "n_signals": 1
+  }
+}

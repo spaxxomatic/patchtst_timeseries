@@ -222,7 +222,8 @@ def replay_simulation(
         if trend_pred > THRESHOLD:
             signal = 1
         elif trend_pred < -THRESHOLD:
-            signal = -1
+            #signal = -1 
+            signal = 0  # disable shorting for now
 
         # ── Position P&L ─────────────────────────────────────────────────────
         if current_trade_direction != 0:
@@ -316,7 +317,7 @@ def _local_roughness(df: pd.DataFrame, k: int = 8) -> float:
 
 # ─── Optuna surface study ─────────────────────────────────────────────────────
 
-def run_surface_study(
+def run_trading_param_surface_study(
     params: TradeSimParams,
     n_trials: int = 600,
     threshold_range: Tuple[float, float] = (0.001, 0.020),
@@ -348,8 +349,7 @@ def run_surface_study(
     """
     if output_dir is None:
         output_dir = Path(params.model_path) / "surface_study"
-    else:
-        return output_dir
+    
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if cache_file is None:
@@ -611,7 +611,7 @@ if __name__ == "__main__":
     if args.cache_only:
         build_predictions_cache(params, cache_file, force=args.force_cache)
     else:
-        run_surface_study(
+        run_trading_param_surface_study(
             params,
             n_trials=args.n_trials,
             threshold_range=(args.thr_lo, args.thr_hi),

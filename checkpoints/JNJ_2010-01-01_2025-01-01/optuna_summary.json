@@ -1,0 +1,52 @@
+{
+  "traded_symbol": "JNJ",
+  "tickers": [
+    "JNJ",
+    "^SPX",
+    "^VIX"
+  ],
+  "load_data_from": "2010-01-01",
+  "trading_start": "2025-01-01",
+  "best_consistency_score": 0.5,
+  "best_params": {
+    "input_size": 30,
+    "patch_len": 4,
+    "stride": 8,
+    "encoder_layers": 3,
+    "n_heads": 4,
+    "hidden_size": 128,
+    "linear_hidden_size": 32,
+    "dropout": 0.21238388481928275,
+    "learning_rate": 0.00012295172429793846
+  },
+  "runtime": 1397,
+  "n_completed_trials": 50,
+  "config": {
+    "h": 7,
+    "n_trials": 50,
+    "timeout": 7200,
+    "n_folds": 4,
+    "fold_step": 20,
+    "n_cv_windows": 3,
+    "optuna_max_steps": 500,
+    "final_max_steps": 500,
+    "val_size": 50,
+    "precision": "16-mixed"
+  },
+  "fold_hit_rates": [
+    0.5,
+    0.5,
+    0.5,
+    0.5
+  ],
+  "fold_hr_mean": 0.5,
+  "fold_hr_std": 0.0,
+  "fold_worst_hr": 0.5,
+  "n_folds_above_chance": 0,
+  "fold_consistency_score": 0.5,
+  "threshold_calibration": {
+    "p25": 0.000956,
+    "p50": 0.001714,
+    "p75": 0.003479
+  }
+}

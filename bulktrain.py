@@ -27,20 +27,23 @@ tickers = [
   "COR","OKE","VMC","KDP","WBD","ABC","PNR","WRB","ZBRA","ETSY",
   "FTV","RCL","BSY","HPQ","NRG","AAL"
 ]
-tickers = [
-  "^RUT","^RUI"]
+tickers = ["^RUT","^RUI"]
+tickers = ["AAPL","MSFT","AMZN","NVDA","GOOGL","GOOG","META","BRK-B","TSLA","UNH",
+  "LLY","JPM","XOM","JNJ","V","PG","AVGO","MA","HD","CVX",
+  "MRK","ABBV","PEP","COST","ADBE","KO","CSCO","WMT","TMO","MCD",
+  "PFE","CRM","BAC","ACN","CMCSA","LIN","NFLX","ABT","ORCL","DHR"]
 from lib.tradeparams import TradeSimParams
 from lib.model_trainer import train
 #t_2025_loser_tickers = ["DECK", "IT", "ARE"]
 for t in tickers:
     params = TradeSimParams(
         THRESHOLD=0.0002,
-        STOPLOSS_THRESHOLD=-0.01,
-        TRAILING_STOP_THRESHOLD=0.3,
+        STOPLOSS_THRESHOLD=-0.025,
+        TRAILING_STOP_THRESHOLD=0.8,
         FEE=0.0005,
         traded_symbol=t,
-        tickers=[t],
-        load_data_from_date='2018-01-01',
+        tickers=[t, '^SPX', '^VIX'],
+        load_data_from_date='2010-01-01',
         trading_start='2025-01-01',
         trading_end='2025-11-01',
     )

@@ -45,7 +45,7 @@ class TradeSimParams:
     sim_log_file:Path = field(init=False)
     paramsfile:Path = field(init=False)
     sim_stats_results:Path = field(init=False)
-    
+    invert_signal:bool = False
     def __post_init__(self) -> None:
         if self.model_path is None:
             symbol_clean = self.traded_symbol.replace('^', '')

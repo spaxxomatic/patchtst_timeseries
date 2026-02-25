@@ -63,7 +63,7 @@ class _AuthMiddleware(BaseHTTPMiddleware):
             )
         return await call_next(request)
 
-app = FastAPI(title="TradeSimulator Dashboard")
+app = FastAPI(title="NN Dashboard")
 app.add_middleware(_AuthMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=_get_session_secret(), max_age=86400 * 30)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -461,12 +461,13 @@ async def surface_status(model_folder: str):
 
 
 def _do_surface_run(model_folder: str) -> None:
-    from thresh_surface import run_surface_study
+    from thresh_surface import run_trading_param_surface_study
     from lib.tradeparams import TradeSimParams
 
     os.chdir(PROJECT_ROOT)
     study_dir = CHECKPOINTS / model_folder / "surface_study"
     lock_file = study_dir / _SURFACE_LOCK
+    lock_file.touch()
     try:
         sim_folder = _find_tradesim_folder_for_model(model_folder)
         if sim_folder is None:
@@ -476,30 +477,32 @@ def _do_surface_run(model_folder: str) -> None:
         if not hasattr(params, "model_storage_folder") or params.model_storage_folder is None:
             params.model_storage_folder = Path(params.model_path) / "model"
 
-        run_surface_study(params, n_trials=600, output_dir=study_dir)
+        run_trading_param_surface_study(params, n_trials=600, output_dir=study_dir)
     except Exception as exc:
         # Persist error message so the UI can surface it
         (study_dir / "surface_error.txt").write_text(str(exc))
     finally:
+        print (f"Surface run for model {model_folder} completed, removing lock file.")
         lock_file.unlink(missing_ok=True)
 
 
 @app.post("/surface-run/{model_folder:path}")
-async def surface_run(model_folder: str, background_tasks: BackgroundTasks):
+async def surface_run(model_folder: str):
     study_dir = CHECKPOINTS / model_folder / "surface_study"
-    lock_file = study_dir / _SURFACE_LOCK
-    if lock_file.exists():
-        return JSONResponse({"status": "already_running"})
     if (study_dir / "surface_summary.json").exists():
         return JSONResponse({"status": "already_done"})
     sim_folder = _find_tradesim_folder_for_model(model_folder)
     if sim_folder is None:
         raise HTTPException(status_code=422, detail="No tradesimlog run found for this model — run a simulation first")
     study_dir.mkdir(parents=True, exist_ok=True)
-    (study_dir / "surface_error.txt").unlink(missing_ok=True)
-    lock_file.touch()
+    #(study_dir / "surface_error.txt").unlink(missing_ok=True)
+    lock_file = study_dir / _SURFACE_LOCK
+    if lock_file.exists():
+        return JSONResponse({"status": "already_running"})    
+    background_tasks = BackgroundTasks()
     background_tasks.add_task(_do_surface_run, model_folder)
-    return JSONResponse({"status": "started"})
+    
+    return JSONResponse({"status": "started"}, background=background_tasks)
 
 
 @app.get("/surface-image/{model_folder:path}")
@@ -760,4 +763,4 @@ async def regime_data_api():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=8001, reload=False)
